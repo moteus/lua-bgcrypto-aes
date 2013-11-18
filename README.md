@@ -32,3 +32,6 @@ while true do
 end
 
 ```
+
+[![Bitdeli Badge](https://d2weczhvl823v0.cloudfront.net/moteus/lua-bgcrypto-aes/trend.png)](https://bitdeli.com/free "Bitdeli Badge")
+
