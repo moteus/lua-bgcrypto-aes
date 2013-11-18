@@ -1,5 +1,7 @@
 local aes = require "bgcrypto.aes"
 
+local IS_LUA52 = _VERSION >= 'Lua 5.2'
+
 local function HEX(str)
   return (string.gsub(str, "..", function(p)
     return (string.char(tonumber(p, 16)))
@@ -206,7 +208,7 @@ assert(str1 == str4)
 
 end
 
-do -- ECB partial (co)
+if IS_LUA52 then -- ECB partial (co)
 
 local edata = HEX"7fb319fd949d0e5afde169b4bb8141cd7fb319fd949d0e5afde169b4bb8141cd"
 local key = ("1"):rep(32)
@@ -345,7 +347,7 @@ cbc_encrypt:destroy()
 
 end
 
-do -- CBC partial (co)
+if IS_LUA52 then -- CBC partial (co)
 
 local key   = ("1"):rep(32)
 local iv    = ("0"):rep(16)
@@ -503,7 +505,7 @@ cfb_encrypt:destroy()
 
 end
 
-do -- CFB partial (co)
+if IS_LUA52 then -- CFB partial (co)
 
 local key   = ("1"):rep(32)
 local iv    = ("0"):rep(16)
@@ -661,7 +663,7 @@ ofb_encrypt:destroy()
 
 end
 
-do -- OFB partial (co)
+if IS_LUA52 then -- OFB partial (co)
 
 local key   = ("1"):rep(32)
 local iv    = ("0"):rep(16)
@@ -832,7 +834,7 @@ ctr_encrypt:destroy()
 
 end
 
-do -- CTR partial (co)
+if IS_LUA52 then -- CTR partial (co)
 
 local key   = ("1"):rep(32)
 local iv    = ("0"):rep(16)
