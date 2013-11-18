@@ -1,0 +1,27 @@
+PROJECT = 'bgcrypto'
+
+INITLAKEFILE()
+
+aes = c.shared{'aes',
+  base     = 'src',
+  src      = {'aes/*.c', '*.c'},
+  needs    = {LUA_NEED},
+  incdir   = {'aes'},
+  defines  = DEFINES,
+  dynamic  = DYNAMIC,
+  strip    = true,
+}
+
+
+target('build', aes)
+
+install = target('install', {
+  file.group{odir = J(LIBDIR, 'bgcrypto'); src = aes       };
+  file.group{odir = TESTDIR; src = J('test', '*')     };
+})
+
+target('test', install, function()
+  run_test("test.lua")
+end)
+
+default('build')
