@@ -1765,7 +1765,7 @@ static const struct luaL_Reg l_bgcrypto_lib[] = {
   {NULL, NULL}
 };
 
-int luaopen_bgcrypto_aes(lua_State*L){
+INT_RETURN luaopen_bgcrypto_aes(lua_State*L){
   if(
     (EXIT_SUCCESS != aes_test_alignment_detection(4 )) ||
     (EXIT_SUCCESS != aes_test_alignment_detection(8 )) ||

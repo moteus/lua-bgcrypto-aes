@@ -29,6 +29,7 @@ build = {
         'src/aes/aestab.c', 'src/l52util.c', 'src/laes.c'
       },
       incdirs = {'src/aes'},
+      defines = {'DLL_EXPORT'},
     },
   },
 }

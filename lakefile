@@ -2,6 +2,8 @@ PROJECT = 'bgcrypto'
 
 INITLAKEFILE()
 
+DEFINES = L{DEFINES, 'DLL_EXPORT'}
+
 aes = c.shared{'aes',
   base     = 'src',
   src      = {'aes/*.c', '*.c'},
@@ -12,7 +14,6 @@ aes = c.shared{'aes',
   strip    = true,
 }
 
-
 target('build', aes)
 
 install = target('install', {
@@ -21,7 +22,7 @@ install = target('install', {
 })
 
 target('test', install, function()
-  run_test("test.lua")
+  run_test('test.lua')
 end)
 
 default('build')
