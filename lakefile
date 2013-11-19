@@ -2,7 +2,7 @@ PROJECT = 'bgcrypto'
 
 INITLAKEFILE()
 
-DEFINES = L{DEFINES, 'DLL_EXPORT'}
+DEFINES = L{DEFINES, IF(WINDOWS, 'DLL_EXPORT', '')}
 
 aes = c.shared{'aes',
   base     = 'src',
@@ -17,7 +17,7 @@ aes = c.shared{'aes',
 target('build', aes)
 
 install = target('install', {
-  file.group{odir = J(LIBDIR, 'bgcrypto'); src = aes       };
+  file.group{odir = J(LIBDIR, 'bgcrypto'); src = aes  };
   file.group{odir = TESTDIR; src = J('test', '*')     };
 })
 
