@@ -158,6 +158,15 @@ local CTR = {
   }
 }
 
+do -- AES
+  local encrypter = assert(aes.encrypter())
+  local decrypter = assert(aes.decrypter())
+
+
+  encrypter:destroy()
+  decrypter:destroy()
+end
+
 do -- ECB
 
 local ecb_encrypt = aes.ecb_encrypter()

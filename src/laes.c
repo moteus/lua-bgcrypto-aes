@@ -44,6 +44,139 @@ static int pass(lua_State *L, const char *msg){
   return 1;
 }
 
+//{ AES
+
+#define L_AES_NAME "AES context"
+static const char * L_AES_CTX = L_AES_NAME;
+
+typedef struct l_aes_ctx_tag{
+  FLAG_TYPE       flags;
+  union{
+    aes_encrypt_ctx  ctx[1];
+    aes_encrypt_ctx ectx[1];
+    aes_decrypt_ctx dctx[1];
+  };
+  unsigned char   buffer[AES_BLOCK_SIZE];
+} l_aes_ctx;
+
+static l_aes_ctx *l_get_aes_at (lua_State *L, int i) {
+  l_aes_ctx *ctx = (l_aes_ctx *)lutil_checkudatap (L, i, L_AES_CTX);
+  luaL_argcheck (L, ctx != NULL, 1, L_AES_NAME " expected");
+  luaL_argcheck (L, !(ctx->flags & FLAG_DESTROYED), 1, L_AES_NAME " is destroyed");
+  return ctx;
+}
+
+static int l_aes_new(lua_State *L, int decrypt){
+  l_aes_ctx *ctx = lutil_newudatap(L, l_aes_ctx, L_AES_CTX);
+  memset(ctx, 0, sizeof(l_aes_ctx));
+
+  if(decrypt) ctx->flags |= FLAG_DECRYPT;
+
+  return 1;
+}
+
+static int l_aes_new_encrypt(lua_State *L){
+  return l_aes_new(L, 0);
+}
+
+static int l_aes_new_decrypt(lua_State *L){
+  return l_aes_new(L, 1);
+}
+
+static int l_aes_tostring(lua_State *L){
+  l_aes_ctx *ctx = (l_aes_ctx *)lutil_checkudatap (L, 1, L_AES_CTX);
+  lua_pushfstring(L, L_AES_NAME " (%s): %p",
+    CTX_FLAG(ctx, DESTROYED)?"destroy":(CTX_FLAG(ctx, OPEN)?"open":"close"),
+    ctx
+  );
+  return 1;
+}
+
+static int l_aes_destroy(lua_State *L){
+  l_aes_ctx *ctx = (l_aes_ctx *)lutil_checkudatap (L, 1, L_AES_CTX);
+  luaL_argcheck (L, ctx != NULL, 1, L_AES_NAME " expected");
+
+  if(ctx->flags & FLAG_DESTROYED) return 0;
+
+  if(ctx->flags & FLAG_OPEN){
+    ctx->flags &= ~FLAG_OPEN;
+  }
+
+  ctx->flags |= FLAG_DESTROYED;
+  return 0;
+}
+
+static int l_aes_destroyed(lua_State *L){
+  l_aes_ctx *ctx = (l_aes_ctx *)lutil_checkudatap (L, 1, L_AES_CTX);
+  luaL_argcheck (L, ctx != NULL, 1, L_AES_NAME " expected");
+  lua_pushboolean(L, ctx->flags & FLAG_DESTROYED);
+  return 1;
+}
+
+static int l_aes_open(lua_State *L){
+  l_aes_ctx *ctx = l_get_aes_at(L, 1);
+  size_t key_len; const unsigned char *key = (unsigned char *)luaL_checklstring(L, 2, &key_len);
+  int result;
+
+  luaL_argcheck(L, !CTX_FLAG(ctx, OPEN), 1, L_AES_NAME " already open" );
+
+  if(CTX_FLAG(ctx, DECRYPT))
+    result = aes_decrypt_key(key, key_len, ctx->dctx);
+  else
+    result = aes_encrypt_key(key, key_len, ctx->ectx);
+
+  if(result != EXIT_SUCCESS){
+    luaL_argcheck(L, 0, 2, "invalid key length");
+    return 0;
+  }
+
+  ctx->flags |= FLAG_OPEN;
+  lua_settop(L, 1);
+  return 1;
+}
+
+static int l_aes_close(lua_State *L){
+  l_aes_ctx *ctx = l_get_aes_at(L, 1);
+  luaL_argcheck(L, CTX_FLAG(ctx, OPEN), 1, L_AES_NAME " is close");
+  ctx->flags &= ~FLAG_OPEN;
+  return 0;
+}
+
+static int l_aes_closed(lua_State *L){
+  l_aes_ctx *ctx = l_get_aes_at(L, 1);
+  lua_pushboolean(L, !(ctx->flags & FLAG_OPEN));
+  return 1;
+}
+
+static int l_aes_encrypt(lua_State *L){
+  l_aes_ctx *ctx = l_get_aes_at(L, 1);
+  size_t len; const unsigned char *data = (unsigned char *)luaL_checklstring(L, 2, &len);
+  int ret;
+
+  luaL_argcheck(L, len == AES_BLOCK_SIZE, 1, L_AES_NAME " invalid block length" );
+
+  if(CTX_FLAG(ctx, DECRYPT)) ret = aes_decrypt(data, ctx->buffer, ctx->dctx);
+  else                       ret = aes_encrypt(data, ctx->buffer, ctx->ectx);
+
+  lua_pushlstring(L, ctx->buffer, AES_BLOCK_SIZE);
+  return 0;
+}
+
+static const struct luaL_Reg l_aes_meth[] = {
+  {"__gc",       l_aes_destroy     },
+  {"__tostring", l_aes_tostring    },
+  {"open",       l_aes_open        },
+  {"destroy",    l_aes_destroy     },
+  {"closed",     l_aes_closed      },
+  {"destroyed",  l_aes_destroyed   },
+  {"encrypt",    l_aes_encrypt     },
+  {"close",      l_aes_close       },
+
+  {NULL, NULL}
+};
+
+//}
+
 //{ ECB
 
 #define L_ECB_NAME "ECB context"
@@ -1752,6 +1885,8 @@ static const struct luaL_Reg l_ctr_meth[] = {
 //}
 
 static const struct luaL_Reg l_bgcrypto_lib[] = {
+  {"encrypter",     l_aes_new_encrypt},
+  {"decrypter",     l_aes_new_decrypt},
   {"ecb_encrypter", l_ecb_new_encrypt},
   {"ecb_decrypter", l_ecb_new_decrypt},
   {"cbc_encrypter", l_cbc_new_encrypt},
@@ -1777,6 +1912,7 @@ INT_RETURN luaopen_bgcrypto_aes(lua_State*L){
 
   aes_init();
 
+  lutil_createmetap(L, L_AES_CTX, l_aes_meth, 0);
   lutil_createmetap(L, L_ECB_CTX, l_ecb_meth, 0);
   lutil_createmetap(L, L_CBC_CTX, l_cbc_meth, 0);
   lutil_createmetap(L, L_CFB_CTX, l_cfb_meth, 0);
