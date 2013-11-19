@@ -39,7 +39,7 @@ static int fail(lua_State *L, const char *msg){
   return 2;
 }
 
-static int pass(lua_State *L, const char *msg){
+static int pass(lua_State *L){
   lua_pushboolean(L, 1);
   return 1;
 }
@@ -1555,21 +1555,31 @@ static const struct luaL_Reg l_ofb_meth[] = {
 
 //{ CTR
 
-static void forwart_iv_inc(unsigned char *iv){
+static void forward_iv_inc(unsigned char *iv){
   int i;
   for(i = 0; i < IV_SIZE; ++i){
-    unsigned char c = iv[i];
-    iv[i] = ++c;
-    if(c) return;
+    if(++iv[i]) return;
   }
 }
 
-static void backwart_iv_inc(unsigned char *iv){
+static void backward_iv_inc(unsigned char *iv){
   int i;
   for(i = IV_SIZE-1; i >= 0; --i){
-    unsigned char c = iv[i];
-    iv[i] = ++c;
-    if(c) return;
+    if(++iv[i]) return;
+  }
+}
+
+static void forward_iv_dec(unsigned char *iv){
+  int i;
+  for(i = 0; i < IV_SIZE; ++i){
+    if(--iv[i]) return;
+  }
+}
+
+static void backward_iv_dec(unsigned char *iv){
+  int i;
+  for(i = IV_SIZE-1; i >= 0; --i){
+    if(--iv[i]) return;
   }
 }
 
@@ -1608,7 +1618,7 @@ static int l_ctr_new(lua_State *L, int decrypt){
   ctx = (l_ctr_ctx *)lutil_newudatap_impl(L, ctx_len, L_CTR_CTX);
   memset(ctx, 0, ctx_len);
 
-  ctx->inc_fn         = backwart_iv_inc;
+  ctx->inc_fn         = backward_iv_inc;
   ctx->buffer_size    = buf_len;
   ctx->writer_cb_ref  = LUA_NOREF;
   ctx->writer_ud_ref  = LUA_NOREF;
@@ -1866,18 +1876,38 @@ static int l_ctr_reset(lua_State *L){
   return 1;
 }
 
+static int l_ctr_set_inc_mode(lua_State *L){
+  l_ctr_ctx *ctx = l_get_ctr_at(L, 1);
+  const char *mode = luaL_optstring(L, 2, "bi");
+  if(mode[0] == 'b'){
+         if(mode[1] == 'i') ctx->inc_fn = backward_iv_inc;
+    else if(mode[1] == 'd') ctx->inc_fn = backward_iv_dec;
+    else                    ctx->inc_fn = backward_iv_inc;
+    return pass(L);
+  }
+  if(mode[0] == 'f'){
+         if(mode[1] == 'i') ctx->inc_fn = forward_iv_inc;
+    else if(mode[1] == 'd') ctx->inc_fn = forward_iv_dec;
+    else                    ctx->inc_fn = forward_iv_inc;
+    return pass(L);
+  }
+
+  return fail(L, L_CTR_NAME " invalid increment mode");
+}
+
 static const struct luaL_Reg l_ctr_meth[] = {
-  {"__gc",       l_ctr_destroy     },
-  {"__tostring", l_ctr_tostring    },
-  {"open",       l_ctr_open        },
-  {"destroy",    l_ctr_destroy     },
-  {"closed",     l_ctr_closed      },
-  {"destroyed",  l_ctr_destroyed   },
-  {"set_writer", l_ctr_set_writer  },
-  {"get_writer", l_ctr_get_writer  },
-  {"write",      l_ctr_write       },
-  {"reset",      l_ctr_reset       }, 
-  {"close",      l_ctr_close       },
+  {"__gc",         l_ctr_destroy      },
+  {"__tostring",   l_ctr_tostring     },
+  {"open",         l_ctr_open         },
+  {"destroy",      l_ctr_destroy      },
+  {"closed",       l_ctr_closed       },
+  {"destroyed",    l_ctr_destroyed    },
+  {"set_writer",   l_ctr_set_writer   },
+  {"get_writer",   l_ctr_get_writer   },
+  {"write",        l_ctr_write        },
+  {"reset",        l_ctr_reset        },
+  {"set_inc_mode", l_ctr_set_inc_mode },
+  {"close",        l_ctr_close        },
 
   {NULL, NULL}
 };

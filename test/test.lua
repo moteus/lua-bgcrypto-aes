@@ -162,7 +162,6 @@ do -- AES
   local encrypter = assert(aes.encrypter())
   local decrypter = assert(aes.decrypter())
 
-
   encrypter:destroy()
   decrypter:destroy()
 end
@@ -905,6 +904,26 @@ assert(str1 == edata)
 assert(str2 == edata)
 assert(str3 == edata)
 assert(str4 == edata)
+
+ctr_encrypt:destroy()
+
+end
+
+do -- CTR increment mode
+
+local key    = HEX"6b1d6577569f7de0ca04da512ffb51548ff19be7dcc1b00e86565417058e4e2b"
+local iv     = HEX"01000000000000000000000000000000"
+local data   = "11111111111111111111\r\n22222222222222222222"
+local edata  = HEX"91aa63f0cb2b92479f89c32eb6b875b8c7d487aa7a8cb3705a5d8d276d6a2e8fc7cad94cc28ed0ad123e"
+
+local ctr_encrypt = aes.ctr_encrypter()
+ctr_encrypt:set_inc_mode("fi") -- firward increment
+
+ctr_encrypt:open(key, iv)
+
+local encrypt = ctr_encrypt:write(data)
+
+ctr_encrypt:close()
 
 ctr_encrypt:destroy()
 
