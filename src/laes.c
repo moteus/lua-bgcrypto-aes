@@ -1752,16 +1752,16 @@ static const struct luaL_Reg l_ctr_meth[] = {
 //}
 
 static const struct luaL_Reg l_bgcrypto_lib[] = {
-  {"ecb_encrypt", l_ecb_new_encrypt},
-  {"ecb_decrypt", l_ecb_new_decrypt},
-  {"cbc_encrypt", l_cbc_new_encrypt},
-  {"cbc_decrypt", l_cbc_new_decrypt},
-  {"cfb_encrypt", l_cfb_new_encrypt},
-  {"cfb_decrypt", l_cfb_new_decrypt},
-  {"ofb_encrypt", l_ofb_new_encrypt},
-  {"ofb_decrypt", l_ofb_new_decrypt},
-  {"ctr_encrypt", l_ctr_new_encrypt},
-  {"ctr_decrypt", l_ctr_new_decrypt},
+  {"ecb_encrypter", l_ecb_new_encrypt},
+  {"ecb_decrypter", l_ecb_new_decrypt},
+  {"cbc_encrypter", l_cbc_new_encrypt},
+  {"cbc_decrypter", l_cbc_new_decrypt},
+  {"cfb_encrypter", l_cfb_new_encrypt},
+  {"cfb_decrypter", l_cfb_new_decrypt},
+  {"ofb_encrypter", l_ofb_new_encrypt},
+  {"ofb_decrypter", l_ofb_new_decrypt},
+  {"ctr_encrypter", l_ctr_new_encrypt},
+  {"ctr_decrypter", l_ctr_new_decrypt},
   {NULL, NULL}
 };
 

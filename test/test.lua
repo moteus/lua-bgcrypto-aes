@@ -160,8 +160,8 @@ local CTR = {
 
 do -- ECB
 
-local ecb_encrypt = aes.ecb_encrypt()
-local ecb_decrypt = aes.ecb_decrypt()
+local ecb_encrypt = aes.ecb_encrypter()
+local ecb_decrypt = aes.ecb_decrypter()
 for mode, tests in ipairs(ECB) do
   local key = HEX(tests.key)
   for _, test in ipairs(tests) do
@@ -193,7 +193,7 @@ ecb_decrypt:destroy()
 end
 
 do -- ECB partial
-local ecb_encrypt = aes.ecb_encrypt()
+local ecb_encrypt = aes.ecb_encrypter()
 
 ecb_encrypt:open(("1"):rep(32))
 local str1 = ecb_encrypt:write("1234567890123456") .. ecb_encrypt:write("1234567890123456")
@@ -213,7 +213,7 @@ if IS_LUA52 then -- ECB partial (co)
 local edata = HEX"7fb319fd949d0e5afde169b4bb8141cd7fb319fd949d0e5afde169b4bb8141cd"
 local key = ("1"):rep(32)
 
-local ecb_encrypt = aes.ecb_encrypt()
+local ecb_encrypt = aes.ecb_encrypter()
 ecb_encrypt:set_writer(coroutine.yield)
 
 ecb_encrypt:open(key)
@@ -237,7 +237,7 @@ do -- ECB partial (cb)
 local edata = HEX"7fb319fd949d0e5afde169b4bb8141cd7fb319fd949d0e5afde169b4bb8141cd"
 local key = ("1"):rep(32)
 
-local ecb_encrypt = aes.ecb_encrypt()
+local ecb_encrypt = aes.ecb_encrypter()
 
 ecb_encrypt:open(key)
 local str1 = cb_encrypt(ecb_encrypt, "1234567890123456", "1234567890123456")
@@ -257,8 +257,8 @@ end
 
 do -- CBC
 
-local cbc_encrypt = aes.cbc_encrypt()
-local cbc_decrypt = aes.cbc_decrypt()
+local cbc_encrypt = aes.cbc_encrypter()
+local cbc_decrypt = aes.cbc_decrypter()
 for mode, tests in ipairs(CBC) do
   local key = HEX(tests.key)
   for _, test in ipairs(tests) do
@@ -292,7 +292,7 @@ end
 
 do -- CBC reset
 
-local cbc_encrypt = aes.cbc_encrypt()
+local cbc_encrypt = aes.cbc_encrypter()
 
 local key   = HEX(CBC[1].key)
 local test  = CBC[1][1]
@@ -321,7 +321,7 @@ do -- CBC partial
 
 local key = ("1"):rep(32)
 local iv  = ("0"):rep(16)
-local cbc_encrypt = aes.cbc_encrypt()
+local cbc_encrypt = aes.cbc_encrypter()
 
 assert(cbc_encrypt:open(key, iv))
 local str1 = cbc_encrypt:write("1234567890123456") .. cbc_encrypt:write("1234567890123456")
@@ -353,7 +353,7 @@ local key   = ("1"):rep(32)
 local iv    = ("0"):rep(16)
 local edata = HEX"adf7901b7d43f7afa11a2d150bd11db366f2ec1d92751720a9b5244141d2cca7"
 
-local cbc_encrypt = aes.cbc_encrypt()
+local cbc_encrypt = aes.cbc_encrypter()
 cbc_encrypt:set_writer(coroutine.yield)
 
 cbc_encrypt:open(key, iv)
@@ -387,7 +387,7 @@ local key   = ("1"):rep(32)
 local iv    = ("0"):rep(16)
 local edata = HEX"adf7901b7d43f7afa11a2d150bd11db366f2ec1d92751720a9b5244141d2cca7"
 
-local cbc_encrypt = aes.cbc_encrypt()
+local cbc_encrypt = aes.cbc_encrypter()
 
 assert(cbc_encrypt:open(key, iv))
 local str1 = cb_encrypt(cbc_encrypt, "1234567890123456", "1234567890123456")
@@ -416,8 +416,8 @@ end
 
 do -- CFB
 
-local cfb_encrypt = aes.cfb_encrypt()
-local cfb_decrypt = aes.cfb_decrypt()
+local cfb_encrypt = aes.cfb_encrypter()
+local cfb_decrypt = aes.cfb_decrypter()
 for mode, tests in ipairs(CFB) do
   local key = HEX(tests.key)
   for _, test in ipairs(tests) do
@@ -451,7 +451,7 @@ end
 
 do -- CFB reset
 
-local cfb_encrypt = aes.cfb_encrypt()
+local cfb_encrypt = aes.cfb_encrypter()
 
 local key   = ("1"):rep(32)
 local iv    = ("0"):rep(16)
@@ -479,7 +479,7 @@ do -- CFB partial
 
 local key = ("1"):rep(32)
 local iv  = ("0"):rep(16)
-local cfb_encrypt = aes.cfb_encrypt()
+local cfb_encrypt = aes.cfb_encrypter()
 
 assert(cfb_encrypt:open(key, iv))
 local str1 = cfb_encrypt:write("1234567890123456") .. cfb_encrypt:write("1234567890123456")
@@ -511,7 +511,7 @@ local key   = ("1"):rep(32)
 local iv    = ("0"):rep(16)
 local edata = HEX"aaa262ad40ccae2c32f2e9e4e32adf3cc0b385bd385f9ed3af92efed5eeab169"
 
-local cfb_encrypt = aes.cfb_encrypt()
+local cfb_encrypt = aes.cfb_encrypter()
 cfb_encrypt:set_writer(coroutine.yield)
 
 cfb_encrypt:open(key, iv)
@@ -545,7 +545,7 @@ local key   = ("1"):rep(32)
 local iv    = ("0"):rep(16)
 local edata = HEX"aaa262ad40ccae2c32f2e9e4e32adf3cc0b385bd385f9ed3af92efed5eeab169"
 
-local cfb_encrypt = aes.cfb_encrypt()
+local cfb_encrypt = aes.cfb_encrypter()
 
 assert(cfb_encrypt:open(key, iv))
 local str1 = cb_encrypt(cfb_encrypt, "1234567890123456", "1234567890123456")
@@ -574,8 +574,8 @@ end
 
 do -- OFB
 
-local ofb_encrypt = aes.ofb_encrypt()
-local ofb_decrypt = aes.ofb_decrypt()
+local ofb_encrypt = aes.ofb_encrypter()
+local ofb_decrypt = aes.ofb_decrypter()
 for mode, tests in ipairs(OFB) do
   local key = HEX(tests.key)
   for _, test in ipairs(tests) do
@@ -609,7 +609,7 @@ end
 
 do -- OFB reset
 
-local ofb_encrypt = aes.ofb_encrypt()
+local ofb_encrypt = aes.ofb_encrypter()
 
 local key   = ("1"):rep(32)
 local iv    = ("0"):rep(16)
@@ -637,7 +637,7 @@ do -- OFB partial
 
 local key = ("1"):rep(32)
 local iv  = ("0"):rep(16)
-local ofb_encrypt = aes.ofb_encrypt()
+local ofb_encrypt = aes.ofb_encrypter()
 
 assert(ofb_encrypt:open(key, iv))
 local str1 = ofb_encrypt:write("1234567890123456") .. ofb_encrypt:write("1234567890123456")
@@ -669,7 +669,7 @@ local key   = ("1"):rep(32)
 local iv    = ("0"):rep(16)
 local edata = HEX"aaa262ad40ccae2c32f2e9e4e32adf3c40d0655e1933941aac7a13d760fa6e1a"
 
-local ofb_encrypt = aes.ofb_encrypt()
+local ofb_encrypt = aes.ofb_encrypter()
 ofb_encrypt:set_writer(coroutine.yield)
 
 ofb_encrypt:open(key, iv)
@@ -703,7 +703,7 @@ local key   = ("1"):rep(32)
 local iv    = ("0"):rep(16)
 local edata = HEX"aaa262ad40ccae2c32f2e9e4e32adf3c40d0655e1933941aac7a13d760fa6e1a"
 
-local ofb_encrypt = aes.ofb_encrypt()
+local ofb_encrypt = aes.ofb_encrypter()
 
 assert(ofb_encrypt:open(key, iv))
 local str1 = cb_encrypt(ofb_encrypt, "1234567890123456", "1234567890123456")
@@ -732,8 +732,8 @@ end
 
 do -- CTR
 
-local ctr_encrypt = aes.ctr_encrypt()
-local ctr_decrypt = aes.ctr_decrypt()
+local ctr_encrypt = aes.ctr_encrypter()
+local ctr_decrypt = aes.ctr_decrypter()
 for mode, tests in ipairs(CTR) do
   local key = HEX(tests.key)
   local iv  = HEX(tests.iv)
@@ -779,7 +779,7 @@ end
 
 do -- CTR reset
 
-local ctr_encrypt = aes.ctr_encrypt()
+local ctr_encrypt = aes.ctr_encrypter()
 
 local key   = ("1"):rep(32)
 local iv    = ("0"):rep(16)
@@ -808,7 +808,7 @@ do -- CTR partial
 
 local key = ("1"):rep(32)
 local iv  = ("0"):rep(16)
-local ctr_encrypt = aes.ctr_encrypt()
+local ctr_encrypt = aes.ctr_encrypter()
 
 assert(ctr_encrypt:open(key, iv))
 local str1 = ctr_encrypt:write("1234567890123456") .. ctr_encrypt:write("1234567890123456")
@@ -840,7 +840,7 @@ local key   = ("1"):rep(32)
 local iv    = ("0"):rep(16)
 local edata = HEX"aaa262ad40ccae2c32f2e9e4e32adf3c4d4cef08db947cc2d36c30566d4eec3c"
 
-local ctr_encrypt = aes.ctr_encrypt()
+local ctr_encrypt = aes.ctr_encrypter()
 ctr_encrypt:set_writer(coroutine.yield)
 
 ctr_encrypt:open(key, iv)
@@ -874,7 +874,7 @@ local key   = ("1"):rep(32)
 local iv    = ("0"):rep(16)
 local edata = HEX"aaa262ad40ccae2c32f2e9e4e32adf3c4d4cef08db947cc2d36c30566d4eec3c"
 
-local ctr_encrypt = aes.ctr_encrypt()
+local ctr_encrypt = aes.ctr_encrypter()
 
 assert(ctr_encrypt:open(key, iv))
 local str1 = cb_encrypt(ctr_encrypt, "1234567890123456", "1234567890123456")
