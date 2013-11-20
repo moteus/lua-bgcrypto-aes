@@ -43,7 +43,7 @@ install:
 
 script:
   - cd test
-  - lua$LUA_SFX test.lua
+  - lua$LUA_SFX test_aes.lua
 
 notifications:
   email:
