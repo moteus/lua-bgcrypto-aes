@@ -1931,6 +1931,8 @@ static const struct luaL_Reg l_bgcrypto_lib[] = {
 };
 
 INT_RETURN luaopen_bgcrypto_aes(lua_State*L){
+  int top = lua_gettop(L);
+
   if(
     (EXIT_SUCCESS != aes_test_alignment_detection(4 )) ||
     (EXIT_SUCCESS != aes_test_alignment_detection(8 )) ||
@@ -1949,7 +1951,12 @@ INT_RETURN luaopen_bgcrypto_aes(lua_State*L){
   lutil_createmetap(L, L_OFB_CTX, l_ofb_meth, 0);
   lutil_createmetap(L, L_CTR_CTX, l_ctr_meth, 0);
 
+  lua_settop(L, top);
+
   lua_newtable(L);
   luaL_setfuncs(L, l_bgcrypto_lib, 0);
+  lua_pushnumber(L, AES_BLOCK_SIZE); lua_setfield(L, -2, "BLOCK_SIZE");
+  assert(lua_gettop(L) == (top + 1));
+
   return 1;
 }
