@@ -158,8 +158,8 @@ static int l_aes_encrypt(lua_State *L){
   if(CTX_FLAG(ctx, DECRYPT)) ret = aes_decrypt(data, ctx->buffer, ctx->dctx);
   else                       ret = aes_encrypt(data, ctx->buffer, ctx->ectx);
 
-  lua_pushlstring(L, ctx->buffer, AES_BLOCK_SIZE);
-  return 0;
+  lua_pushlstring(L, (char *)ctx->buffer, AES_BLOCK_SIZE);
+  return 1;
 }
 
 static const struct luaL_Reg l_aes_meth[] = {
@@ -218,6 +218,28 @@ static int l_ecb_new(lua_State *L, int decrypt){
   ctx->writer_ud_ref  = LUA_NOREF;
   if(decrypt) ctx->flags |= FLAG_DECRYPT;
 
+  return 1;
+}
+
+static int l_ecb_clone(lua_State *L){
+  l_ecb_ctx *ctx = l_get_ecb_at(L, 1);
+  size_t buf_len = luaL_optint(L, 2, ctx->buffer_size);
+  const size_t ctx_len = sizeof(l_ecb_ctx) + buf_len - 1;
+  l_ecb_ctx *ctx2;
+
+  luaL_argcheck (L, buf_len >= (AES_BLOCK_SIZE * 2), 1, "buffer size is too small");
+
+  ctx2 = (l_ecb_ctx *)lutil_newudatap_impl(L, ctx_len, L_ECB_CTX);
+  memset(ctx2, 0, ctx_len);
+
+  ctx2->buffer_size    = buf_len;
+  ctx2->flags          = ctx->flags;
+  ctx2->tail           = ctx->tail;
+  ctx2->writer_cb_ref  = LUA_NOREF;
+  ctx2->writer_ud_ref  = LUA_NOREF;
+
+  memcpy(ctx2->ctx, ctx->ctx, sizeof(aes_encrypt_ctx));
+  memcpy(ctx2->buffer, ctx->buffer, ctx->tail);
   return 1;
 }
 
@@ -542,6 +564,7 @@ static const struct luaL_Reg l_ecb_meth[] = {
   {"write",      l_ecb_write       },
   {"reset",      l_ecb_reset       },
   {"close",      l_ecb_close       },
+  {"clone",      l_ecb_clone       },
 
   {NULL, NULL}
 };
@@ -590,6 +613,29 @@ static int l_cbc_new(lua_State *L, int decrypt){
   ctx->writer_ud_ref  = LUA_NOREF;
   if(decrypt) ctx->flags |= FLAG_DECRYPT;
 
+  return 1;
+}
+
+static int l_cbc_clone(lua_State *L){
+  l_cbc_ctx *ctx = l_get_cbc_at(L, 1);
+  size_t buf_len = luaL_optint(L, 2, ctx->buffer_size);
+  const size_t ctx_len = sizeof(l_cbc_ctx) + buf_len - 1;
+  l_cbc_ctx *ctx2;
+
+  luaL_argcheck (L, buf_len >= (AES_BLOCK_SIZE * 2), 1, "buffer size is too small");
+
+  ctx2 = (l_cbc_ctx *)lutil_newudatap_impl(L, ctx_len, L_CBC_CTX);
+  memset(ctx2, 0, ctx_len);
+
+  ctx2->buffer_size    = buf_len;
+  ctx2->flags          = ctx->flags;
+  ctx2->tail           = ctx->tail;
+  ctx2->writer_cb_ref  = LUA_NOREF;
+  ctx2->writer_ud_ref  = LUA_NOREF;
+
+  memcpy(ctx2->ctx, ctx->ctx, sizeof(aes_encrypt_ctx));
+  memcpy(ctx2->iv,  ctx->iv,  IV_SIZE);
+  memcpy(ctx2->buffer, ctx->buffer, ctx->tail);
   return 1;
 }
 
@@ -925,6 +971,7 @@ static const struct luaL_Reg l_cbc_meth[] = {
   {"write",      l_cbc_write       },
   {"reset",      l_cbc_reset       }, 
   {"close",      l_cbc_close       },
+  {"clone",      l_cbc_clone       },
 
   {NULL, NULL}
 };
@@ -972,6 +1019,27 @@ static int l_cfb_new(lua_State *L, int decrypt){
   ctx->writer_ud_ref  = LUA_NOREF;
   if(decrypt) ctx->flags |= FLAG_DECRYPT;
 
+  return 1;
+}
+
+static int l_cfb_clone(lua_State *L){
+  l_cfb_ctx *ctx = l_get_cfb_at(L, 1);
+  size_t buf_len = luaL_optint(L, 2, ctx->buffer_size);
+  const size_t ctx_len = sizeof(l_cfb_ctx) + buf_len - 1;
+  l_cfb_ctx *ctx2;
+
+  luaL_argcheck (L, buf_len >= (AES_BLOCK_SIZE * 2), 1, "buffer size is too small");
+
+  ctx2 = (l_cfb_ctx *)lutil_newudatap_impl(L, ctx_len, L_CFB_CTX);
+  memset(ctx2, 0, ctx_len);
+
+  ctx2->buffer_size    = buf_len;
+  ctx2->flags          = ctx->flags;
+  ctx2->writer_cb_ref  = LUA_NOREF;
+  ctx2->writer_ud_ref  = LUA_NOREF;
+
+  memcpy(ctx2->ctx, ctx->ctx, sizeof(aes_encrypt_ctx));
+  memcpy(ctx2->iv,  ctx->iv,  IV_SIZE);
   return 1;
 }
 
@@ -1236,6 +1304,7 @@ static const struct luaL_Reg l_cfb_meth[] = {
   {"write",      l_cfb_write       },
   {"reset",      l_cfb_reset       }, 
   {"close",      l_cfb_close       },
+  {"clone",      l_cfb_clone       },
 
   {NULL, NULL}
 };
@@ -1283,6 +1352,27 @@ static int l_ofb_new(lua_State *L, int decrypt){
   ctx->writer_ud_ref  = LUA_NOREF;
   if(decrypt) ctx->flags |= FLAG_DECRYPT;
 
+  return 1;
+}
+
+static int l_ofb_clone(lua_State *L){
+  l_ofb_ctx *ctx = l_get_ofb_at(L, 1);
+  size_t buf_len = luaL_optint(L, 2, ctx->buffer_size);
+  const size_t ctx_len = sizeof(l_ofb_ctx) + buf_len - 1;
+  l_ofb_ctx *ctx2;
+
+  luaL_argcheck (L, buf_len >= (AES_BLOCK_SIZE * 2), 1, "buffer size is too small");
+
+  ctx2 = (l_ofb_ctx *)lutil_newudatap_impl(L, ctx_len, L_OFB_CTX);
+  memset(ctx2, 0, ctx_len);
+
+  ctx2->buffer_size    = buf_len;
+  ctx2->flags          = ctx->flags;
+  ctx2->writer_cb_ref  = LUA_NOREF;
+  ctx2->writer_ud_ref  = LUA_NOREF;
+
+  memcpy(ctx2->ctx, ctx->ctx, sizeof(aes_encrypt_ctx));
+  memcpy(ctx2->iv,  ctx->iv,  IV_SIZE);
   return 1;
 }
 
@@ -1547,6 +1637,7 @@ static const struct luaL_Reg l_ofb_meth[] = {
   {"write",      l_ofb_write       },
   {"reset",      l_ofb_reset       }, 
   {"close",      l_ofb_close       },
+  {"clone",      l_ofb_clone       },
 
   {NULL, NULL}
 };
@@ -1624,6 +1715,28 @@ static int l_ctr_new(lua_State *L, int decrypt){
   ctx->writer_ud_ref  = LUA_NOREF;
   if(decrypt) ctx->flags |= FLAG_DECRYPT;
 
+  return 1;
+}
+
+static int l_ctr_clone(lua_State *L){
+  l_ctr_ctx *ctx = l_get_ctr_at(L, 1);
+  size_t buf_len = luaL_optint(L, 2, ctx->buffer_size);
+  const size_t ctx_len = sizeof(l_ctr_ctx) + buf_len - 1;
+  l_ctr_ctx *ctx2;
+
+  luaL_argcheck (L, buf_len >= (AES_BLOCK_SIZE * 2), 1, "buffer size is too small");
+
+  ctx2 = (l_ctr_ctx *)lutil_newudatap_impl(L, ctx_len, L_CTR_CTX);
+  memset(ctx2, 0, ctx_len);
+
+  ctx2->buffer_size    = buf_len;
+  ctx2->flags          = ctx->flags;
+  ctx2->inc_fn         = ctx->inc_fn;
+  ctx2->writer_cb_ref  = LUA_NOREF;
+  ctx2->writer_ud_ref  = LUA_NOREF;
+
+  memcpy(ctx2->ctx, ctx->ctx, sizeof(aes_encrypt_ctx));
+  memcpy(ctx2->iv,  ctx->iv,  IV_SIZE);
   return 1;
 }
 
@@ -1908,6 +2021,7 @@ static const struct luaL_Reg l_ctr_meth[] = {
   {"reset",        l_ctr_reset        },
   {"set_inc_mode", l_ctr_set_inc_mode },
   {"close",        l_ctr_close        },
+  {"clone",        l_ctr_clone        },
 
   {NULL, NULL}
 };

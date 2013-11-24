@@ -263,6 +263,43 @@ ecb_encrypt:destroy()
 
 end
 
+do -- ECB clone
+
+local key = ("1"):rep(32)
+local iv  = ("0"):rep(16)
+
+local ctx1, ctx2, str1, str2
+
+ctx1 = aes.ecb_encrypter():open(key)
+ctx1:write("1234567890123456")
+ctx2 = ctx1:clone()
+str1 = ctx1:write("1234567890123456")
+str2 = ctx2:write("1234567890123456")
+assert(str1 == str2)
+ctx1:destroy()
+ctx2:destroy()
+
+
+ctx1 = aes.ecb_encrypter():open(key)
+ctx1:write("1234567890")
+ctx2 = ctx1:clone()
+str1 = ctx1:write("1234561234567890123456")
+str2 = ctx2:write("1234561234567890123456")
+assert(str1 == str2)
+ctx1:destroy()
+ctx2:destroy()
+
+ctx1 = aes.ecb_encrypter():open(key)
+ctx1:write("1234567890123456123456")
+ctx2 = ctx1:clone()
+str1 = ctx1:write("7890123456")
+str2 = ctx2:write("7890123456")
+assert(str1 == str2)
+ctx1:destroy()
+ctx2:destroy()
+
+end
+
 do -- CBC
 
 local cbc_encrypt = aes.cbc_encrypter()
@@ -352,6 +389,43 @@ assert(str1 == str3)
 assert(str1 == str4)
 
 cbc_encrypt:destroy()
+
+end
+
+do -- CBC clone
+
+local key = ("1"):rep(32)
+local iv  = ("0"):rep(16)
+
+local ctx1, ctx2, str1, str2
+
+ctx1 = aes.cbc_encrypter():open(key, iv)
+ctx1:write("1234567890123456")
+ctx2 = ctx1:clone()
+str1 = ctx1:write("1234567890123456")
+str2 = ctx2:write("1234567890123456")
+assert(str1 == str2)
+ctx1:destroy()
+ctx2:destroy()
+
+
+ctx1 = aes.cbc_encrypter():open(key, iv)
+ctx1:write("1234567890")
+ctx2 = ctx1:clone()
+str1 = ctx1:write("1234561234567890123456")
+str2 = ctx2:write("1234561234567890123456")
+assert(str1 == str2)
+ctx1:destroy()
+ctx2:destroy()
+
+ctx1 = aes.cbc_encrypter():open(key, iv)
+ctx1:write("1234567890123456123456")
+ctx2 = ctx1:clone()
+str1 = ctx1:write("7890123456")
+str2 = ctx2:write("7890123456")
+assert(str1 == str2)
+ctx1:destroy()
+ctx2:destroy()
 
 end
 
@@ -580,6 +654,43 @@ cfb_encrypt:destroy()
 
 end
 
+do -- CFB clone
+
+local key = ("1"):rep(32)
+local iv  = ("0"):rep(16)
+
+local ctx1, ctx2, str1, str2
+
+ctx1 = aes.cfb_encrypter():open(key, iv)
+ctx1:write("1234567890123456")
+ctx2 = ctx1:clone()
+str1 = ctx1:write("1234567890123456")
+str2 = ctx2:write("1234567890123456")
+assert(str1 == str2)
+ctx1:destroy()
+ctx2:destroy()
+
+
+ctx1 = aes.cfb_encrypter():open(key, iv)
+ctx1:write("1234567890")
+ctx2 = ctx1:clone()
+str1 = ctx1:write("1234561234567890123456")
+str2 = ctx2:write("1234561234567890123456")
+assert(str1 == str2)
+ctx1:destroy()
+ctx2:destroy()
+
+ctx1 = aes.cfb_encrypter():open(key, iv)
+ctx1:write("1234567890123456123456")
+ctx2 = ctx1:clone()
+str1 = ctx1:write("7890123456")
+str2 = ctx2:write("7890123456")
+assert(str1 == str2)
+ctx1:destroy()
+ctx2:destroy()
+
+end
+
 do -- OFB
 
 local ofb_encrypt = aes.ofb_encrypter()
@@ -735,6 +846,43 @@ assert(str3 == edata)
 assert(str4 == edata)
 
 ofb_encrypt:destroy()
+
+end
+
+do -- OFB clone
+
+local key = ("1"):rep(32)
+local iv  = ("0"):rep(16)
+
+local ctx1, ctx2, str1, str2
+
+ctx1 = aes.ofb_encrypter():open(key, iv)
+ctx1:write("1234567890123456")
+ctx2 = ctx1:clone()
+str1 = ctx1:write("1234567890123456")
+str2 = ctx2:write("1234567890123456")
+assert(str1 == str2)
+ctx1:destroy()
+ctx2:destroy()
+
+
+ctx1 = aes.ofb_encrypter():open(key, iv)
+ctx1:write("1234567890")
+ctx2 = ctx1:clone()
+str1 = ctx1:write("1234561234567890123456")
+str2 = ctx2:write("1234561234567890123456")
+assert(str1 == str2)
+ctx1:destroy()
+ctx2:destroy()
+
+ctx1 = aes.ofb_encrypter():open(key, iv)
+ctx1:write("1234567890123456123456")
+ctx2 = ctx1:clone()
+str1 = ctx1:write("7890123456")
+str2 = ctx2:write("7890123456")
+assert(str1 == str2)
+ctx1:destroy()
+ctx2:destroy()
 
 end
 
@@ -928,4 +1076,42 @@ ctr_encrypt:close()
 ctr_encrypt:destroy()
 
 end
+
+do -- CTR clone
+
+local key = ("1"):rep(32)
+local iv  = ("0"):rep(16)
+
+local ctx1, ctx2, str1, str2
+
+ctx1 = aes.ctr_encrypter():open(key, iv)
+ctx1:write("1234567890123456")
+ctx2 = ctx1:clone()
+str1 = ctx1:write("1234567890123456")
+str2 = ctx2:write("1234567890123456")
+assert(str1 == str2)
+ctx1:destroy()
+ctx2:destroy()
+
+
+ctx1 = aes.ctr_encrypter():open(key, iv)
+ctx1:write("1234567890")
+ctx2 = ctx1:clone()
+str1 = ctx1:write("1234561234567890123456")
+str2 = ctx2:write("1234561234567890123456")
+assert(str1 == str2)
+ctx1:destroy()
+ctx2:destroy()
+
+ctx1 = aes.ctr_encrypter():open(key, iv)
+ctx1:write("1234567890123456123456")
+ctx2 = ctx1:clone()
+str1 = ctx1:write("7890123456")
+str2 = ctx2:write("7890123456")
+assert(str1 == str2)
+ctx1:destroy()
+ctx2:destroy()
+
+end
+
 
