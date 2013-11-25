@@ -39,6 +39,9 @@ before_install:
   - cd $TRAVIS_BUILD_DIR
 
 install:
+  - sudo apt-get install libzmq3
+  - sudo apt-get install libzmq3-dev
+  - sudo luarocks install lzmq
   - sudo luarocks install lunitx
   - sudo luarocks make rockspecs/bgcrypto-aes-scm-0.rockspec
 
