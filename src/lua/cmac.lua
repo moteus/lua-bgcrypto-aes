@@ -8,7 +8,7 @@ local function orequire(...)
   end
 end
 
-local bit = assert(orequire("bit32", "bit"), 'no bit32 module')
+local bit = assert(orequire("bit", "bit32"), 'no bit32 module')
 
 local sbyte   = string.byte
 local schar   = function(ch) return string.char(bit.band(ch, 0xFF)) end
@@ -21,42 +21,17 @@ local band    = bit.band
 local blshift = bit.lshift
 local brshift = bit.rshift
 
-local function HEX(str)
-  str = str:gsub("%s", "")
-  return (string.gsub(str, "..", function(p)
-    return (string.char(tonumber(p, 16)))
-  end))
-end
+local function char_at(str, i) return (ssub(str,i,i))              end
 
-local function STR(str)
-  return (string.gsub(str, ".", function(p)
-    return (string.format("%.2x", string.byte(p)))
-  end))
-end
+local function byte_at(str, i) return (sbyte(str,i))               end
 
-local function char_at(str, i)
-  return ssub(str,i,i)
-end
+local function cxor(ch, b)     return schar(bxor(sbyte(ch), b))    end
 
-local function byte_at(str, i)
-  return (sbyte(str,i))
-end
+local function cor(ch, b)      return schar(bor(sbyte(ch), b))     end
 
-local function cxor(ch, b)
-  return schar(bxor(sbyte(ch), b))
-end
+local function cand(ch, b)     return schar(band(sbyte(ch), b))    end
 
-local function cor(ch, b)
-  return schar(bor(sbyte(ch), b))
-end
-
-local function cand(ch, b)
-  return schar(band(sbyte(ch), b))
-end
-
-local function clshift(ch, b)
-  return schar(blshift(sbyte(ch), b))
-end
+local function clshift(ch, b)  return schar(blshift(sbyte(ch), b)) end
 
 local function lmask(n)
   local mask = 0x00
@@ -91,7 +66,8 @@ local function str_lshift(str, n)
   return res
 end
 
-assert((str_lshift(HEX"7FFF", 1) == HEX"FFFE"))
+-- 7FFF << 1 = FFFE
+assert((str_lshift("\127\255", 1) == "\255\254"))
 
 local R = {
   [16] = ("\0"):rep(15) .. string.char(0x87);
@@ -114,40 +90,46 @@ local function cmac_key(ALGO, K)
   return K1, K2
 end
 
-local function chunks(msg, chunk_size, len)
-  len = len or #msg
+local function ichunks(len, chunk_size)
   return function(_, b)
     b = b + chunk_size
     if b > len then return nil end
     local e = b + chunk_size - 1
-    if e > len then e = len end
-    return b, (string.sub(msg, b, e))
+    if e > len then return b, len - b + 1 end
+    return b, chunk_size
   end, nil, -chunk_size + 1
 end
 
 local function cmac_digest(ALGO, K, M)
   local K1, K2 = cmac_key(ALGO, K)
   local CIPH = ALGO.cbc_encrypter():open(K, ('\0'):rep(ALGO.BLOCK_SIZE))
-  local C
+  local chunk, C
 
-  if #M == 0 then
-    local chunk = '\128' .. ('\0'):rep(ALGO.BLOCK_SIZE - 1)
-    C = CIPH:write(str_xor(chunk, K2))
-  else
-    local len = #M - ALGO.BLOCK_SIZE
-    for b, chunk in chunks(M, ALGO.BLOCK_SIZE) do
-      if b > len then
-        if #chunk == ALGO.BLOCK_SIZE then
-          chunk = str_xor(chunk, K1)
-        else
-          chunk = chunk .. '\128' .. ('\0'):rep(ALGO.BLOCK_SIZE - #chunk - 1)
-          chunk = str_xor(chunk, K2)
-        end
-        C = CIPH:write(chunk)
-      end
-      CIPH:write(chunk)
+  if #M > 0 then
+    local nblocks = math.floor(#M / ALGO.BLOCK_SIZE)
+    local last_block_pos = nblocks * ALGO.BLOCK_SIZE
+    if last_block_pos == #M then
+      last_block_pos = (nblocks - 1) * ALGO.BLOCK_SIZE
     end
+    last_block_pos = last_block_pos
+
+    -- we can use any size. 
+    for b, size in ichunks(last_block_pos, ALGO.BLOCK_SIZE * 2) do
+      CIPH:write(M, b, size)
+    end
+
+    chunk = M:sub(last_block_pos + 1)
+  else chunk = "" end
+
+  if #chunk == ALGO.BLOCK_SIZE then
+    chunk = str_xor(chunk, K1)
+  else
+    chunk = chunk .. '\128' .. ('\0'):rep(ALGO.BLOCK_SIZE - #chunk - 1)
+    chunk = str_xor(chunk, K2)
   end
+  C = CIPH:write(chunk)
+
+  CIPH:destroy()
 
   return C
 end
@@ -265,6 +247,19 @@ end
 
 local aes = require "bgcrypto.aes"
 
+local function HEX(str)
+  str = str:gsub("%s", "")
+  return (string.gsub(str, "..", function(p)
+    return (string.char(tonumber(p, 16)))
+  end))
+end
+
+local function STR(str)
+  return (string.gsub(str, ".", function(p)
+    return (string.format("%.2x", string.byte(p)))
+  end))
+end
+
 local TEST_KEY = {
   {
     ALGO = aes;
@@ -356,7 +351,7 @@ for _, test in ipairs(TEST_KEY) do
   assert(test.K2 == k2)
   for _, data in ipairs(test) do
     local c = cmac_digest(test.ALGO, test.KEY, data.M)
-    assert(c == data.T)
+    assert(c == data.T, '\n  Exp:' .. STR(data.T) .. '\n  Got:' .. STR(c))
 
     local d = cmac:new(test.ALGO, test.KEY)
     d:update(data.M)
