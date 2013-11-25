@@ -44,6 +44,61 @@ static int pass(lua_State *L){
   return 1;
 }
 
+/* return [ buffer[be], buffer[en] ] */
+static const char* correct_range(lua_State *L, int idx, size_t *size){
+  if(lua_islightuserdata(L, idx)){
+    /* (ud, [offset=0,] size) */
+    const char *input = (const char*)lua_touserdata(L, idx);
+    int of, sz;
+
+    if(lua_isnumber(L, idx + 1) && lua_isnumber(L, idx + 2)){
+      of = lua_tointeger(L, idx + 1);
+      sz = lua_tointeger(L, idx + 2);
+      lua_remove(L, idx + 1);
+      lua_remove(L, idx + 1);
+    }
+    else{
+      of = 0;
+      sz = luaL_checkinteger(L, idx + 1);
+      lua_remove(L, idx + 1);
+    }
+
+    luaL_argcheck(L, of >= 0, idx+1, "invalid offset");
+    luaL_argcheck(L, sz >= 0, idx+2, "invalid size"  );
+
+    *size = sz;
+    return input + of;
+  }
+  else{
+    /* (str, [be=1[, size=(#str-be+1)]]) */
+    size_t len; const char *input = luaL_checklstring(L, idx, &len);
+    int be, sz;
+    if(lua_isnumber(L, idx+1)){
+      be = lua_tointeger(L, idx+1);
+      lua_remove(L, idx+1);
+      luaL_argcheck(L, be > 0, idx+1, "invalid begin index");
+    }else be = 1;
+
+    if(lua_isnumber(L, idx+1)){
+      sz = lua_tointeger(L, idx+1);
+      lua_remove(L, idx+1);
+      luaL_argcheck(L, sz >= 0, idx+2, "invalid size");
+    }else sz = len;
+
+    if((size_t)be > len){
+      *size = 0;
+      return input;
+    }
+
+    len = len - be + 1;
+
+    if((size_t)sz > len) sz = len;
+
+    *size = sz;
+    return input + be - 1;
+  }
+}
+
 //{ AES
 
 #define L_AES_NAME "AES context"
@@ -150,7 +205,7 @@ static int l_aes_closed(lua_State *L){
 
 static int l_aes_encrypt(lua_State *L){
   l_aes_ctx *ctx = l_get_aes_at(L, 1);
-  size_t len; const unsigned char *data = (unsigned char *)luaL_checklstring(L, 2, &len);
+  size_t len; const unsigned char *data = (unsigned char *)correct_range(L, 2, &len);
   int ret;
 
   luaL_argcheck(L, len == AES_BLOCK_SIZE, 1, L_AES_NAME " invalid block length" );
@@ -388,7 +443,7 @@ static int l_ecb_push_writer(lua_State *L, l_ecb_ctx *ctx){
 
 static int l_ecb_write_impl(lua_State *L){
   l_ecb_ctx *ctx = l_get_ecb_at(L, 1);
-  size_t len; const unsigned char *data = (unsigned char *)luaL_checklstring(L, 2, &len);
+  size_t len; const unsigned char *data = (unsigned char *)correct_range(L, 2, &len);
   size_t align_len;
   const int use_buffer = (ctx->writer_cb_ref == LUA_NOREF)?1:0;
   luaL_Buffer buffer; int n = 0;
@@ -465,20 +520,22 @@ static int l_ecb_write_impl(lua_State *L){
 
 static int l_ecb_writek_impl(lua_State *L){
   l_ecb_ctx *ctx = l_get_ecb_at(L, 1);
-  size_t len; const unsigned char *data = (unsigned char *)luaL_checklstring(L, 2, &len);
-  size_t align_len;
-  const unsigned char *b = data, *e = data + len;
+  size_t len, align_len;
+  const unsigned char *data, *b, *e;
   int ret;
 
   if(LUA_OK != lua_getctx(L, NULL)){
-    assert(lua_gettop(L) == 3);
-    data = lua_touserdata(L, -1);
-    assert( (data >= b) && (data <= e) );
-    len = e - data;
+    assert(lua_gettop(L) == 4);
+    data = lua_touserdata(L, -2);
+    len  = lua_tointeger(L, -1);
   }
+  else{
+    data = (unsigned char *)correct_range(L, 2, &len);
+  }
+
   lua_settop(L, 2);
 
-  if(data >= e) return 0;
+  if(len == 0) return 0;
 
   if(ctx->tail){
     // how many bytes we need to full block
@@ -501,27 +558,33 @@ static int l_ecb_writek_impl(lua_State *L){
     len  -= tail;
 
     lua_pushlightuserdata(L, (void*)data);
+    lua_pushinteger(L, len);
     {
       int n = l_ecb_push_writer(L, ctx);
       lua_pushlstring(L, (char*)ctx->buffer + AES_BLOCK_SIZE, AES_BLOCK_SIZE);
-      lua_callk(L, n, 0, 1, l_ecb_writek_impl);
+      lua_callk(L, n, 0, 2, l_ecb_writek_impl);
     }
   }
   align_len = (len >> AES_BLOCK_NB) << AES_BLOCK_NB;
 
   for(b = data, e = data + align_len; b < e; b += ctx->buffer_size){
     size_t left = e - b;
+    const unsigned char *next;
     if(left > ctx->buffer_size) left = ctx->buffer_size;
 
     if(CTX_FLAG(ctx, DECRYPT)) ret = aes_ecb_decrypt(b, ctx->buffer, left, ctx->dctx);
     else                       ret = aes_ecb_encrypt(b, ctx->buffer, left, ctx->ectx);
     if(ret != EXIT_SUCCESS) return fail(L, "invalid block length");
 
-    lua_pushlightuserdata(L, (void*)(b + left));
+    next = b + left;
+    assert(len >= (next - data));
+
+    lua_pushlightuserdata(L, (void*)(next));
+    lua_pushinteger(L, len - (next - data));
     {
       int n = l_ecb_push_writer(L, ctx);
       lua_pushlstring(L, (char*)ctx->buffer, left);
-      lua_callk(L, n, 0, 1, l_ecb_writek_impl);
+      lua_callk(L, n, 0, 2, l_ecb_writek_impl);
     }
     lua_settop(L, 2);
   }
@@ -788,7 +851,7 @@ static int l_cbc_push_writer(lua_State *L, l_cbc_ctx *ctx){
 
 static int l_cbc_write_impl(lua_State *L){
   l_cbc_ctx *ctx = l_get_cbc_at(L, 1);
-  size_t len; const unsigned char *data = (unsigned char *)luaL_checklstring(L, 2, &len);
+  size_t len; const unsigned char *data = (unsigned char *)correct_range(L, 2, &len);
   size_t align_len;
   const int use_buffer = (ctx->writer_cb_ref == LUA_NOREF)?1:0;
   luaL_Buffer buffer; int n = 0;
@@ -866,21 +929,22 @@ static int l_cbc_write_impl(lua_State *L){
 
 static int l_cbc_writek_impl(lua_State *L){
   l_cbc_ctx *ctx = l_get_cbc_at(L, 1);
-  size_t len; const unsigned char *data = (unsigned char *)luaL_checklstring(L, 2, &len);
-  size_t align_len;
-  const unsigned char *b = data, *e = data + len;
+  size_t len, align_len;
+  const unsigned char *data, *b, *e;
   int ret;
 
   if(LUA_OK != lua_getctx(L, NULL)){
-    assert(lua_gettop(L) == 3);
-    data = lua_touserdata(L, -1);
-    assert( (data >= b) && (data <= e) );
-    len = e - data;
+    assert(lua_gettop(L) == 4);
+    data = lua_touserdata(L, -2);
+    len  = lua_tointeger(L, -1);
   }
+  else{
+    data = (unsigned char *)correct_range(L, 2, &len);
+  }
+
   lua_settop(L, 2);
 
-
-  if(data >= e) return 0;
+  if(len == 0) return 0;
 
   if(ctx->tail){
     // how many bytes we need to full block
@@ -903,27 +967,33 @@ static int l_cbc_writek_impl(lua_State *L){
     len  -= tail;
 
     lua_pushlightuserdata(L, (void*)data);
+    lua_pushinteger(L, len);
     {
       int n = l_cbc_push_writer(L, ctx);
       lua_pushlstring(L, (char*)ctx->buffer + AES_BLOCK_SIZE, AES_BLOCK_SIZE);
-      lua_callk(L, n, 0, 1, l_cbc_writek_impl);
+      lua_callk(L, n, 0, 2, l_cbc_writek_impl);
     }
   }
   align_len = (len >> AES_BLOCK_NB) << AES_BLOCK_NB;
 
   for(b = data, e = data + align_len; b < e; b += ctx->buffer_size){
     size_t left = e - b;
+    const unsigned char *next;
     if(left > ctx->buffer_size) left = ctx->buffer_size;
 
     if(CTX_FLAG(ctx, DECRYPT)) ret = aes_cbc_decrypt(b, ctx->buffer, left, ctx->iv, ctx->dctx);
     else                       ret = aes_cbc_encrypt(b, ctx->buffer, left, ctx->iv, ctx->ectx);
     if(ret != EXIT_SUCCESS) return fail(L, "invalid block length");
 
-    lua_pushlightuserdata(L, (void*)(b + left));
+    next = b + left;
+    assert(len >= (next - data));
+
+    lua_pushlightuserdata(L, (void*)(next));
+    lua_pushinteger(L, len - (next - data));
     {
       int n = l_cbc_push_writer(L, ctx);
       lua_pushlstring(L, (char*)ctx->buffer, left);
-      lua_callk(L, n, 0, 1, l_cbc_writek_impl);
+      lua_callk(L, n, 0, 2, l_cbc_writek_impl);
     }
     lua_settop(L, 2);
   }
@@ -1192,7 +1262,7 @@ static int l_cfb_push_writer(lua_State *L, l_cfb_ctx *ctx){
 
 static int l_cfb_write_impl(lua_State *L){
   l_cfb_ctx *ctx = l_get_cfb_at(L, 1);
-  size_t len; const unsigned char *data = (unsigned char *)luaL_checklstring(L, 2, &len);
+  size_t len; const unsigned char *data = (unsigned char *)correct_range(L, 2, &len);
   const int use_buffer = (ctx->writer_cb_ref == LUA_NOREF)?1:0;
   luaL_Buffer buffer; int n = 0;
   const unsigned char *b, *e;
@@ -1231,33 +1301,41 @@ static int l_cfb_write_impl(lua_State *L){
 
 static int l_cfb_writek_impl(lua_State *L){
   l_cfb_ctx *ctx = l_get_cfb_at(L, 1);
-  size_t len; const unsigned char *data = (unsigned char *)luaL_checklstring(L, 2, &len);
-  const unsigned char *b = data, *e = data + len;
+  size_t len;
+  const unsigned char *data, *b, *e;
   int ret;
 
   if(LUA_OK != lua_getctx(L, NULL)){
-    assert(lua_gettop(L) == 3);
-    data = lua_touserdata(L, -1);
-    assert( (data >= b) && (data <= e) );
-    len = e - data;
+    assert(lua_gettop(L) == 4);
+    data = lua_touserdata(L, -2);
+    len  = lua_tointeger(L, -1);
   }
+  else{
+    data = (unsigned char *)correct_range(L, 2, &len);
+  }
+
   lua_settop(L, 2);
 
-  if(data >= e) return 0;
+  if(len == 0) return 0;
 
   for(b = data, e = data + len; b < e; b += ctx->buffer_size){
     size_t left = e - b;
+    const unsigned char *next;
     if(left > ctx->buffer_size) left = ctx->buffer_size;
 
     if(CTX_FLAG(ctx, DECRYPT)) ret = aes_cfb_decrypt(b, ctx->buffer, left, ctx->iv, ctx->ectx);
     else                       ret = aes_cfb_encrypt(b, ctx->buffer, left, ctx->iv, ctx->ectx);
     if(ret != EXIT_SUCCESS) return fail(L, "invalid block length");
 
-    lua_pushlightuserdata(L, (void*)(b + left));
+    next = b + left;
+    assert(len >= (next - data));
+
+    lua_pushlightuserdata(L, (void*)(next));
+    lua_pushinteger(L, len - (next - data));
     {
       int n = l_cfb_push_writer(L, ctx);
       lua_pushlstring(L, (char*)ctx->buffer, left);
-      lua_callk(L, n, 0, 1, l_cfb_writek_impl);
+      lua_callk(L, n, 0, 2, l_cfb_writek_impl);
     }
     lua_settop(L, 2);
   }
@@ -1525,7 +1603,7 @@ static int l_ofb_push_writer(lua_State *L, l_ofb_ctx *ctx){
 
 static int l_ofb_write_impl(lua_State *L){
   l_ofb_ctx *ctx = l_get_ofb_at(L, 1);
-  size_t len; const unsigned char *data = (unsigned char *)luaL_checklstring(L, 2, &len);
+  size_t len; const unsigned char *data = (unsigned char *)correct_range(L, 2, &len);
   const int use_buffer = (ctx->writer_cb_ref == LUA_NOREF)?1:0;
   luaL_Buffer buffer; int n = 0;
   const unsigned char *b, *e;
@@ -1564,33 +1642,39 @@ static int l_ofb_write_impl(lua_State *L){
 
 static int l_ofb_writek_impl(lua_State *L){
   l_ofb_ctx *ctx = l_get_ofb_at(L, 1);
-  size_t len; const unsigned char *data = (unsigned char *)luaL_checklstring(L, 2, &len);
-  const unsigned char *b = data, *e = data + len;
+  size_t len;
+  const unsigned char *data, *b, *e;
   int ret;
 
   if(LUA_OK != lua_getctx(L, NULL)){
-    assert(lua_gettop(L) == 3);
-    data = lua_touserdata(L, -1);
-    assert( (data >= b) && (data <= e) );
-    len = e - data;
+    assert(lua_gettop(L) == 4);
+    data = lua_touserdata(L, -2);
+    len  = lua_tointeger(L, -1);
   }
-  lua_settop(L, 2);
+  else{
+    data = (unsigned char *)correct_range(L, 2, &len);
+  }
 
-  if(data >= e) return 0;
+  lua_settop(L, 2);
 
   for(b = data, e = data + len; b < e; b += ctx->buffer_size){
     size_t left = e - b;
+    const unsigned char *next;
     if(left > ctx->buffer_size) left = ctx->buffer_size;
 
     if(CTX_FLAG(ctx, DECRYPT)) ret = aes_ofb_decrypt(b, ctx->buffer, left, ctx->iv, ctx->ectx);
     else                       ret = aes_ofb_encrypt(b, ctx->buffer, left, ctx->iv, ctx->ectx);
     if(ret != EXIT_SUCCESS) return fail(L, "invalid block length");
 
-    lua_pushlightuserdata(L, (void*)(b + left));
+    next = b + left;
+    assert(len >= (next - data));
+
+    lua_pushlightuserdata(L, (void*)(next));
+    lua_pushinteger(L, len - (next - data));
     {
       int n = l_ofb_push_writer(L, ctx);
       lua_pushlstring(L, (char*)ctx->buffer, left);
-      lua_callk(L, n, 0, 1, l_ofb_writek_impl);
+      lua_callk(L, n, 0, 2, l_ofb_writek_impl);
     }
     lua_settop(L, 2);
   }
@@ -1889,7 +1973,7 @@ static int l_ctr_push_writer(lua_State *L, l_ctr_ctx *ctx){
 
 static int l_ctr_write_impl(lua_State *L){
   l_ctr_ctx *ctx = l_get_ctr_at(L, 1);
-  size_t len; const unsigned char *data = (unsigned char *)luaL_checklstring(L, 2, &len);
+  size_t len; const unsigned char *data = (unsigned char *)correct_range(L, 2, &len);
   const int use_buffer = (ctx->writer_cb_ref == LUA_NOREF)?1:0;
   luaL_Buffer buffer; int n = 0;
   const unsigned char *b, *e;
@@ -1928,33 +2012,41 @@ static int l_ctr_write_impl(lua_State *L){
 
 static int l_ctr_writek_impl(lua_State *L){
   l_ctr_ctx *ctx = l_get_ctr_at(L, 1);
-  size_t len; const unsigned char *data = (unsigned char *)luaL_checklstring(L, 2, &len);
-  const unsigned char *b = data, *e = data + len;
+  size_t len;
+  const unsigned char *data, *b, *e;
   int ret;
 
   if(LUA_OK != lua_getctx(L, NULL)){
-    assert(lua_gettop(L) == 3);
-    data = lua_touserdata(L, -1);
-    assert( (data >= b) && (data <= e) );
-    len = e - data;
+    assert(lua_gettop(L) == 4);
+    data = lua_touserdata(L, -2);
+    len  = lua_tointeger(L, -1);
   }
+  else{
+    data = (unsigned char *)correct_range(L, 2, &len);
+  }
+
   lua_settop(L, 2);
 
-  if(data >= e) return 0;
+  if(len == 0) return 0;
 
   for(b = data, e = data + len; b < e; b += ctx->buffer_size){
     size_t left = e - b;
+    const unsigned char *next;
     if(left > ctx->buffer_size) left = ctx->buffer_size;
 
     if(CTX_FLAG(ctx, DECRYPT)) ret = aes_ctr_decrypt(b, ctx->buffer, left, ctx->iv, ctx->inc_fn, ctx->ectx);
     else                       ret = aes_ctr_encrypt(b, ctx->buffer, left, ctx->iv, ctx->inc_fn, ctx->ectx);
     if(ret != EXIT_SUCCESS) return fail(L, "invalid block length");
 
-    lua_pushlightuserdata(L, (void*)(b + left));
+    next = b + left;
+    assert(len >= (next - data));
+
+    lua_pushlightuserdata(L, (void*)(next));
+    lua_pushinteger(L, len - (next - data));
     {
       int n = l_ctr_push_writer(L, ctx);
       lua_pushlstring(L, (char*)ctx->buffer, left);
-      lua_callk(L, n, 0, 1, l_ctr_writek_impl);
+      lua_callk(L, n, 0, 3, l_ctr_writek_impl);
     }
     lua_settop(L, 2);
   }

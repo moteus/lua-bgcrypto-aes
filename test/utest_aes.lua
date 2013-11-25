@@ -106,6 +106,7 @@ local ectx, dctx
 function setup()
   ectx = aes.ecb_encrypter()
   dctx = aes.ecb_decrypter()
+  if zmsg then zmsg:set_size(0) end
 end
 
 function teardown()
@@ -137,6 +138,14 @@ function test_valid()
       end
       assert_equal(STR(edata), STR(encrypt))
       ectx:close()
+
+      if zmsg then
+        zmsg:set_data(data)
+        assert_equal(ectx, ectx:open(key))
+        local encrypt = assert_string(ectx:write(zmsg:pointer(),zmsg:size()))
+        assert_equal(STR(edata), STR(encrypt))
+        ectx:close()
+      end
     end
   end
 end
@@ -170,6 +179,35 @@ function test_cb_yield()
   assert_equal(STR(EDATA32), STR(str2))
   assert_equal(STR(EDATA32), STR(str3))
   assert_equal(STR(EDATA32), STR(str4))
+end
+
+function test_yield_slice()
+  ectx:set_writer(coroutine.yield)
+  ectx:open(KEY)
+
+  local str1 = co_encrypt(function()
+    ectx:write(DATA32, 1, 1)
+    ectx:write(DATA32.."*", 2, #DATA32 - 1)
+  end)
+
+  assert_equal(STR(EDATA32), STR(str1))
+end
+
+if zmsg then
+
+function test_yield_slice_ud()
+  ectx:set_writer(coroutine.yield)
+  ectx:open(KEY)
+
+  zmsg:set_data("*" .. DATA32 .. "*")
+  local str1 = co_encrypt(function()
+    ectx:write(zmsg:pointer(), 1, 1)
+    ectx:write(zmsg:pointer(), 2, zmsg:size() - 3)
+  end)
+
+  assert_equal(STR(EDATA32), STR(str1))
+end
+
 end
 
 end
@@ -221,6 +259,41 @@ function test_clone()
   ctx2:destroy()
 end
 
+function test_slice()
+  ectx:open(KEY)
+
+  local str1 = ectx:write("*" .. DATA32, 2)
+  local str2 = ectx:write(DATA32 .. "*", 1, #DATA32)
+  local str3 = ectx:write("*" .. DATA32 .. "*", 2, #DATA32)
+
+  assert_equal(STR(EDATA32), STR(str1))
+  assert_equal(STR(EDATA32), STR(str2))
+  assert_equal(STR(EDATA32), STR(str3))
+end
+
+if zmsg then
+
+function test_slice_ud()
+  ectx:open(KEY)
+
+  zmsg:set_size(0) zmsg:set_data("*" .. DATA32)
+  local str1 = ectx:write(zmsg:pointer(), 1, zmsg:size() - 1)
+
+  zmsg:set_size(0) zmsg:set_data(DATA32 .. "*")
+  local str2 = ectx:write(zmsg:pointer(), 0, zmsg:size() - 1)
+  local str3 = ectx:write(zmsg:pointer(), zmsg:size() - 1)
+
+  zmsg:set_size(0) zmsg:set_data("*" .. DATA32 .. "*")
+  local str4 = ectx:write("*" .. DATA32 .. "*", 2, #DATA32)
+
+  assert_equal(STR(EDATA32), STR(str1))
+  assert_equal(STR(EDATA32), STR(str2))
+  assert_equal(STR(EDATA32), STR(str3))
+  assert_equal(STR(EDATA32), STR(str4))
+end
+
+end
+
 end
 
 local _ENV = TEST_CASE"CBC" do
@@ -259,6 +332,7 @@ local ectx, dctx
 function setup()
   ectx = aes.cbc_encrypter()
   dctx = aes.cbc_decrypter()
+  if zmsg then zmsg:set_size(0) end
 end
 
 function teardown()
@@ -291,6 +365,14 @@ function test_valid()
       end
       assert_equal(STR(edata), STR(encrypt))
       ectx:close()
+
+      if zmsg then
+        zmsg:set_data(data)
+        assert_equal(ectx, ectx:open(key, iv))
+        local encrypt = assert_string(ectx:write(zmsg:pointer(),zmsg:size()))
+        assert_equal(STR(edata), STR(encrypt))
+        ectx:close()
+      end
     end
   end
 end
@@ -346,6 +428,35 @@ function test_cb_yield()
   assert_equal(STR(EDATA32), STR(str4))
 end
 
+function test_yield_slice()
+  ectx:set_writer(coroutine.yield)
+  ectx:open(KEY,IV)
+
+  local str1 = co_encrypt(function()
+    ectx:write(DATA32, 1, 1)
+    ectx:write(DATA32.."*", 2, #DATA32 - 1)
+  end)
+
+  assert_equal(STR(EDATA32), STR(str1))
+end
+
+if zmsg then
+
+function test_yield_slice_ud()
+  ectx:set_writer(coroutine.yield)
+  ectx:open(KEY,IV)
+
+  zmsg:set_data("*" .. DATA32 .. "*")
+  local str1 = co_encrypt(function()
+    ectx:write(zmsg:pointer(), 1, 1)
+    ectx:write(zmsg:pointer(), 2, zmsg:size() - 3)
+  end)
+
+  assert_equal(STR(EDATA32), STR(str1))
+end
+
+end
+
 end
 
 function test_partial_cb()
@@ -398,6 +509,41 @@ function test_clone()
   ctx2:destroy()
 end
 
+function test_slice()
+  ectx:open(KEY,IV)
+
+  local str1 = ectx:reset(IV):write("*" .. DATA32, 2)
+  local str2 = ectx:reset(IV):write(DATA32 .. "*", 1, #DATA32)
+  local str3 = ectx:reset(IV):write("*" .. DATA32 .. "*", 2, #DATA32)
+
+  assert_equal(STR(EDATA32), STR(str1))
+  assert_equal(STR(EDATA32), STR(str2))
+  assert_equal(STR(EDATA32), STR(str3))
+end
+
+if zmsg then
+
+function test_slice_ud()
+  ectx:open(KEY,IV)
+
+  zmsg:set_size(0) zmsg:set_data("*" .. DATA32)
+  local str1 = ectx:reset(IV):write(zmsg:pointer(), 1, zmsg:size() - 1)
+
+  zmsg:set_size(0) zmsg:set_data(DATA32 .. "*")
+  local str2 = ectx:reset(IV):write(zmsg:pointer(), 0, zmsg:size() - 1)
+  local str3 = ectx:reset(IV):write(zmsg:pointer(), zmsg:size() - 1)
+
+  zmsg:set_size(0) zmsg:set_data("*" .. DATA32 .. "*")
+  local str4 = ectx:reset(IV):write("*" .. DATA32 .. "*", 2, #DATA32)
+
+  assert_equal(STR(EDATA32), STR(str1))
+  assert_equal(STR(EDATA32), STR(str2))
+  assert_equal(STR(EDATA32), STR(str3))
+  assert_equal(STR(EDATA32), STR(str4))
+end
+
+end
+
 end
 
 local _ENV = TEST_CASE"CFB" do
@@ -436,6 +582,7 @@ local ectx, dctx
 function setup()
   ectx = aes.cfb_encrypter()
   dctx = aes.cfb_decrypter()
+  if zmsg then zmsg:set_size(0) end
 end
 
 function teardown()
@@ -468,6 +615,14 @@ function test_valid()
       end
       assert_equal(STR(edata), STR(encrypt))
       ectx:close()
+
+      if zmsg then
+        zmsg:set_data(data)
+        assert_equal(ectx, ectx:open(key, iv))
+        local encrypt = assert_string(ectx:write(zmsg:pointer(),zmsg:size()))
+        assert_equal(STR(edata), STR(encrypt))
+        ectx:close()
+      end
     end
   end
 end
@@ -523,6 +678,35 @@ function test_cb_yield()
   assert_equal(STR(EDATA32), STR(str4))
 end
 
+function test_yield_slice()
+  ectx:set_writer(coroutine.yield)
+  ectx:open(KEY,IV)
+
+  local str1 = co_encrypt(function()
+    ectx:write(DATA32, 1, 1)
+    ectx:write(DATA32.."*", 2, #DATA32 - 1)
+  end)
+
+  assert_equal(STR(EDATA32), STR(str1))
+end
+
+if zmsg then
+
+function test_yield_slice_ud()
+  ectx:set_writer(coroutine.yield)
+  ectx:open(KEY,IV)
+
+  zmsg:set_data("*" .. DATA32 .. "*")
+  local str1 = co_encrypt(function()
+    ectx:write(zmsg:pointer(), 1, 1)
+    ectx:write(zmsg:pointer(), 2, zmsg:size() - 3)
+  end)
+
+  assert_equal(STR(EDATA32), STR(str1))
+end
+
+end
+
 end
 
 function test_partial_cb()
@@ -575,6 +759,41 @@ function test_clone()
   ctx2:destroy()
 end
 
+function test_slice()
+  ectx:open(KEY,IV)
+
+  local str1 = ectx:reset(IV):write("*" .. DATA32, 2)
+  local str2 = ectx:reset(IV):write(DATA32 .. "*", 1, #DATA32)
+  local str3 = ectx:reset(IV):write("*" .. DATA32 .. "*", 2, #DATA32)
+
+  assert_equal(STR(EDATA32), STR(str1))
+  assert_equal(STR(EDATA32), STR(str2))
+  assert_equal(STR(EDATA32), STR(str3))
+end
+
+if zmsg then
+
+function test_slice_ud()
+  ectx:open(KEY,IV)
+
+  zmsg:set_size(0) zmsg:set_data("*" .. DATA32)
+  local str1 = ectx:reset(IV):write(zmsg:pointer(), 1, zmsg:size() - 1)
+
+  zmsg:set_size(0) zmsg:set_data(DATA32 .. "*")
+  local str2 = ectx:reset(IV):write(zmsg:pointer(), 0, zmsg:size() - 1)
+  local str3 = ectx:reset(IV):write(zmsg:pointer(), zmsg:size() - 1)
+
+  zmsg:set_size(0) zmsg:set_data("*" .. DATA32 .. "*")
+  local str4 = ectx:reset(IV):write("*" .. DATA32 .. "*", 2, #DATA32)
+
+  assert_equal(STR(EDATA32), STR(str1))
+  assert_equal(STR(EDATA32), STR(str2))
+  assert_equal(STR(EDATA32), STR(str3))
+  assert_equal(STR(EDATA32), STR(str4))
+end
+
+end
+
 end
 
 local _ENV = TEST_CASE"OFB" do
@@ -613,6 +832,7 @@ local ectx, dctx
 function setup()
   ectx = aes.ofb_encrypter()
   dctx = aes.ofb_decrypter()
+  if zmsg then zmsg:set_size(0) end
 end
 
 function teardown()
@@ -645,6 +865,14 @@ function test_valid()
       end
       assert_equal(STR(edata), STR(encrypt))
       ectx:close()
+
+      if zmsg then
+        zmsg:set_data(data)
+        assert_equal(ectx, ectx:open(key, iv))
+        local encrypt = assert_string(ectx:write(zmsg:pointer(),zmsg:size()))
+        assert_equal(STR(edata), STR(encrypt))
+        ectx:close()
+      end
     end
   end
 end
@@ -700,6 +928,35 @@ function test_cb_yield()
   assert_equal(STR(EDATA32), STR(str4))
 end
 
+function test_yield_slice()
+  ectx:set_writer(coroutine.yield)
+  ectx:open(KEY,IV)
+
+  local str1 = co_encrypt(function()
+    ectx:write(DATA32, 1, 1)
+    ectx:write(DATA32.."*", 2, #DATA32 - 1)
+  end)
+
+  assert_equal(STR(EDATA32), STR(str1))
+end
+
+if zmsg then
+
+function test_yield_slice_ud()
+  ectx:set_writer(coroutine.yield)
+  ectx:open(KEY,IV)
+
+  zmsg:set_data("*" .. DATA32 .. "*")
+  local str1 = co_encrypt(function()
+    ectx:write(zmsg:pointer(), 1, 1)
+    ectx:write(zmsg:pointer(), 2, zmsg:size() - 3)
+  end)
+
+  assert_equal(STR(EDATA32), STR(str1))
+end
+
+end
+
 end
 
 function test_partial_cb()
@@ -752,6 +1009,41 @@ function test_clone()
   ctx2:destroy()
 end
 
+function test_slice()
+  ectx:open(KEY,IV)
+
+  local str1 = ectx:reset(IV):write("*" .. DATA32, 2)
+  local str2 = ectx:reset(IV):write(DATA32 .. "*", 1, #DATA32)
+  local str3 = ectx:reset(IV):write("*" .. DATA32 .. "*", 2, #DATA32)
+
+  assert_equal(STR(EDATA32), STR(str1))
+  assert_equal(STR(EDATA32), STR(str2))
+  assert_equal(STR(EDATA32), STR(str3))
+end
+
+if zmsg then
+
+function test_slice_ud()
+  ectx:open(KEY,IV)
+
+  zmsg:set_size(0) zmsg:set_data("*" .. DATA32)
+  local str1 = ectx:reset(IV):write(zmsg:pointer(), 1, zmsg:size() - 1)
+
+  zmsg:set_size(0) zmsg:set_data(DATA32 .. "*")
+  local str2 = ectx:reset(IV):write(zmsg:pointer(), 0, zmsg:size() - 1)
+  local str3 = ectx:reset(IV):write(zmsg:pointer(), zmsg:size() - 1)
+
+  zmsg:set_size(0) zmsg:set_data("*" .. DATA32 .. "*")
+  local str4 = ectx:reset(IV):write("*" .. DATA32 .. "*", 2, #DATA32)
+
+  assert_equal(STR(EDATA32), STR(str1))
+  assert_equal(STR(EDATA32), STR(str2))
+  assert_equal(STR(EDATA32), STR(str3))
+  assert_equal(STR(EDATA32), STR(str4))
+end
+
+end
+
 end
 
 local _ENV = TEST_CASE"CTR" do
@@ -793,6 +1085,7 @@ local ectx, dctx
 function setup()
   ectx = aes.ctr_encrypter()
   dctx = aes.ctr_decrypter()
+  if zmsg then zmsg:set_size(0) end
 end
 
 function teardown()
@@ -844,6 +1137,47 @@ function test_valid()
 
     dctx:close()
     ectx:close()
+
+    if zmsg then
+      assert_equal(ectx, ectx:open(key, iv))
+      assert_equal(dctx, dctx:open(key, iv))
+
+      for _, test in ipairs(tests) do
+        local data  = HEX(test[1])
+        local edata = HEX(test[2])
+
+        zmsg:set_size(0) zmsg:set_data(data)
+        local encrypt = assert_string(ectx:write(zmsg:pointer(),zmsg:size()))
+        assert_equal(STR(edata), STR(encrypt))
+
+        zmsg:set_size(0) zmsg:set_data(edata)
+        local decrypt = assert_string(dctx:write(zmsg:pointer(),zmsg:size()))
+        assert_equal(STR(data), STR(decrypt))
+      end
+
+      dctx:close()
+      ectx:close()
+
+      assert_equal(ectx, ectx:open(key, iv))
+      assert_equal(dctx, dctx:open(key, iv))
+
+      for _, test in ipairs(tests) do
+        local data  = HEX(test[1])
+        local edata = HEX(test[2])
+
+        zmsg:set_size(0) zmsg:set_data(data)
+        local encrypt = assert_string(ectx:write(zmsg:pointer(),zmsg:size()))
+        assert_equal(STR(edata), STR(encrypt))
+
+        zmsg:set_size(0) zmsg:set_data(edata)
+        local decrypt = assert_string(dctx:write(zmsg:pointer(),zmsg:size()))
+        assert_equal(STR(data), STR(decrypt))
+      end
+
+      dctx:close()
+      ectx:close()
+
+    end
   end
 end
 
@@ -897,6 +1231,35 @@ function test_cb_yield()
   assert_equal(STR(EDATA32), STR(str4))
 end
 
+function test_yield_slice()
+  ectx:set_writer(coroutine.yield)
+  ectx:open(KEY,IV)
+
+  local str1 = co_encrypt(function()
+    ectx:write(DATA32, 1, 1)
+    ectx:write(DATA32.."*", 2, #DATA32 - 1)
+  end)
+
+  assert_equal(STR(EDATA32), STR(str1))
+end
+
+if zmsg then
+
+function test_yield_slice_ud()
+  ectx:set_writer(coroutine.yield)
+  ectx:open(KEY,IV)
+
+  zmsg:set_data("*" .. DATA32 .. "*")
+  local str1 = co_encrypt(function()
+    ectx:write(zmsg:pointer(), 1, 1)
+    ectx:write(zmsg:pointer(), 2, zmsg:size() - 3)
+  end)
+
+  assert_equal(STR(EDATA32), STR(str1))
+end
+
+end
+
 end
 
 function test_partial_cb()
@@ -949,6 +1312,41 @@ function test_clone()
   ctx2:destroy()
 end
 
+function test_slice()
+  ectx:open(KEY,IV)
+
+  local str1 = ectx:reset(IV):write("*" .. DATA32, 2)
+  local str2 = ectx:reset(IV):write(DATA32 .. "*", 1, #DATA32)
+  local str3 = ectx:reset(IV):write("*" .. DATA32 .. "*", 2, #DATA32)
+
+  assert_equal(STR(EDATA32), STR(str1))
+  assert_equal(STR(EDATA32), STR(str2))
+  assert_equal(STR(EDATA32), STR(str3))
+end
+
+if zmsg then
+
+function test_slice_ud()
+  ectx:open(KEY,IV)
+
+  zmsg:set_size(0) zmsg:set_data("*" .. DATA32)
+  local str1 = ectx:reset(IV):write(zmsg:pointer(), 1, zmsg:size() - 1)
+
+  zmsg:set_size(0) zmsg:set_data(DATA32 .. "*")
+  local str2 = ectx:reset(IV):write(zmsg:pointer(), 0, zmsg:size() - 1)
+  local str3 = ectx:reset(IV):write(zmsg:pointer(), zmsg:size() - 1)
+
+  zmsg:set_size(0) zmsg:set_data("*" .. DATA32 .. "*")
+  local str4 = ectx:reset(IV):write("*" .. DATA32 .. "*", 2, #DATA32)
+
+  assert_equal(STR(EDATA32), STR(str1))
+  assert_equal(STR(EDATA32), STR(str2))
+  assert_equal(STR(EDATA32), STR(str3))
+  assert_equal(STR(EDATA32), STR(str4))
+end
+
+end
+
 function test_increment_mode()
   local key    = HEX"6b1d6577569f7de0ca04da512ffb51548ff19be7dcc1b00e86565417058e4e2b"
   local iv     = HEX"01000000000000000000000000000000"
@@ -962,6 +1360,5 @@ function test_increment_mode()
 end
 
 end
-
 
 if not HAS_RUNNER then lunit.run() end
