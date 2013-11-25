@@ -22,7 +22,7 @@ install = target('install', {
 })
 
 target('test', install, function()
-  run_test('test_aes.lua')
+  run_test('utest_aes.lua')
 end)
 
 default('build')
