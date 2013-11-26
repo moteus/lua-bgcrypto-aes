@@ -295,6 +295,36 @@ end
 
 end
 
+function test_reset()
+  local c1 = ectx:open(("2"):rep(32)):write(DATA32)
+  local c2 = ectx:reset():write(DATA32)
+  local c3 = ectx:reset(KEY):write(DATA32)
+
+  assert_not_equal(STR(EDATA32), STR(c1))
+  assert_equal(STR(c1), STR(c2))
+  assert_equal(STR(EDATA32), STR(c3))
+end
+
+function test_reset_open()
+  assert_true(ectx:closed())
+  ectx:open(KEY)  assert_false(ectx:closed())
+  ectx:close(KEY) assert_true(ectx:closed())
+
+  assert_equal(ectx, ectx:reset())
+  assert_true(ectx:closed())
+
+  -- reset could open context
+  assert_equal(ectx, ectx:reset(KEY))
+  assert_false(ectx:closed())
+
+  -- we can not reopen context
+  assert_error(function() ectx:open(KEY) end)
+
+  -- but we can reset context with key
+  assert_equal(ectx, ectx:reset(KEY))
+  assert_false(ectx:closed())
+end
+
 end
 
 local _ENV = TEST_CASE"CBC" do
@@ -545,6 +575,36 @@ end
 
 end
 
+function test_reset()
+  local c1 = ectx:open(("2"):rep(32), IV):write(DATA32)
+  local c2 = ectx:reset(IV):write(DATA32)
+  local c3 = ectx:reset(KEY, IV):write(DATA32)
+
+  assert_not_equal(STR(EDATA32), STR(c1))
+  assert_equal(STR(c1), STR(c2))
+  assert_equal(STR(EDATA32), STR(c3))
+end
+
+function test_reset_open()
+  assert_true(ectx:closed())
+  ectx:open(KEY,IV)  assert_false(ectx:closed())
+  ectx:close()       assert_true(ectx:closed())
+
+  assert_equal(ectx, ectx:reset(IV))
+  assert_true(ectx:closed())
+
+  -- reset could open context
+  assert_equal(ectx, ectx:reset(KEY,IV))
+  assert_false(ectx:closed())
+
+  -- we can not reopen context
+  assert_error(function() ectx:open(KEY, IV) end)
+
+  -- but we can reset context with key
+  assert_equal(ectx, ectx:reset(KEY, IV))
+  assert_false(ectx:closed())
+end
+
 end
 
 local _ENV = TEST_CASE"CFB" do
@@ -553,6 +613,8 @@ local KEY     = ("1"):rep(32)
 local IV      = ("0"):rep(16)
 local DATA32  = "12345678901234561234567890123456"
 local EDATA32 = HEX"aaa262ad40ccae2c32f2e9e4e32adf3cc0b385bd385f9ed3af92efed5eeab169"
+local DATA33  = "123456789012345612345678901234561"
+local EDATA33 = HEX"aaa262ad40ccae2c32f2e9e4e32adf3cc0b385bd385f9ed3af92efed5eeab169ea"
 
 local CFB = {
   { -- 128
@@ -795,6 +857,51 @@ end
 
 end
 
+function test_reset_pos()
+  assert_equal(ectx, ectx:open(KEY, IV))
+
+  local encrypt = assert_string(ectx:write(DATA33))
+  assert_equal(STR(EDATA33), STR(encrypt))
+
+  encrypt = assert_string(ectx:write(DATA33))
+  assert_not_equal(STR(EDATA33), STR(encrypt))
+
+  ectx:reset(IV)
+
+  local encrypt = assert_string(ectx:write(DATA33))
+  assert_equal(STR(EDATA33), STR(encrypt))
+end
+
+function test_reset()
+  local c1 = ectx:open(("2"):rep(32), IV):write(DATA32)
+  local c2 = ectx:reset(IV):write(DATA32)
+  local c3 = ectx:reset(KEY, IV):write(DATA32)
+
+  assert_not_equal(STR(EDATA32), STR(c1))
+  assert_equal(STR(c1), STR(c2))
+  assert_equal(STR(EDATA32), STR(c3))
+end
+
+function test_reset_open()
+  assert_true(ectx:closed())
+  ectx:open(KEY,IV)  assert_false(ectx:closed())
+  ectx:close()       assert_true(ectx:closed())
+
+  assert_equal(ectx, ectx:reset(IV))
+  assert_true(ectx:closed())
+
+  -- reset could open context
+  assert_equal(ectx, ectx:reset(KEY,IV))
+  assert_false(ectx:closed())
+
+  -- we can not reopen context
+  assert_error(function() ectx:open(KEY, IV) end)
+
+  -- but we can reset context with key
+  assert_equal(ectx, ectx:reset(KEY, IV))
+  assert_false(ectx:closed())
+end
+
 end
 
 local _ENV = TEST_CASE"OFB" do
@@ -803,6 +910,8 @@ local KEY     = ("1"):rep(32)
 local IV      = ("0"):rep(16)
 local DATA32  = "12345678901234561234567890123456"
 local EDATA32 = HEX"aaa262ad40ccae2c32f2e9e4e32adf3c40d0655e1933941aac7a13d760fa6e1a"
+local DATA33  = "123456789012345612345678901234561"
+local EDATA33 = HEX"aaa262ad40ccae2c32f2e9e4e32adf3c40d0655e1933941aac7a13d760fa6e1abe"
 
 local OFB = {
   { -- 128
@@ -1045,6 +1154,51 @@ end
 
 end
 
+function test_reset_pos()
+  assert_equal(ectx, ectx:open(KEY, IV))
+
+  local encrypt = assert_string(ectx:write(DATA33))
+  assert_equal(STR(EDATA33), STR(encrypt))
+
+  encrypt = assert_string(ectx:write(DATA33))
+  assert_not_equal(STR(EDATA33), STR(encrypt))
+
+  ectx:reset(IV)
+
+  local encrypt = assert_string(ectx:write(DATA33))
+  assert_equal(STR(EDATA33), STR(encrypt))
+end
+
+function test_reset()
+  local c1 = ectx:open(("2"):rep(32), IV):write(DATA32)
+  local c2 = ectx:reset(IV):write(DATA32)
+  local c3 = ectx:reset(KEY, IV):write(DATA32)
+
+  assert_not_equal(STR(EDATA32), STR(c1))
+  assert_equal(STR(c1), STR(c2))
+  assert_equal(STR(EDATA32), STR(c3))
+end
+
+function test_reset_open()
+  assert_true(ectx:closed())
+  ectx:open(KEY,IV)  assert_false(ectx:closed())
+  ectx:close()       assert_true(ectx:closed())
+
+  assert_equal(ectx, ectx:reset(IV))
+  assert_true(ectx:closed())
+
+  -- reset could open context
+  assert_equal(ectx, ectx:reset(KEY,IV))
+  assert_false(ectx:closed())
+
+  -- we can not reopen context
+  assert_error(function() ectx:open(KEY, IV) end)
+
+  -- but we can reset context with key
+  assert_equal(ectx, ectx:reset(KEY, IV))
+  assert_false(ectx:closed())
+end
+
 end
 
 local _ENV = TEST_CASE"CTR" do
@@ -1053,6 +1207,8 @@ local KEY     = ("1"):rep(32)
 local IV      = ("0"):rep(16)
 local DATA32  = "12345678901234561234567890123456"
 local EDATA32 = HEX"aaa262ad40ccae2c32f2e9e4e32adf3c4d4cef08db947cc2d36c30566d4eec3c"
+local DATA33  = "123456789012345612345678901234561"
+local EDATA33 = HEX"aaa262ad40ccae2c32f2e9e4e32adf3c4d4cef08db947cc2d36c30566d4eec3cc4"
 
 local CTR = {
   {-- 128
@@ -1358,6 +1514,51 @@ function test_increment_mode()
   ectx:open(key, iv)
   local encrypt = ectx:write(data)
   assert_equal(STR(edata), STR(encrypt))
+end
+
+function test_reset_pos()
+  assert_equal(ectx, ectx:open(KEY, IV))
+
+  local encrypt = assert_string(ectx:write(DATA33))
+  assert_equal(STR(EDATA33), STR(encrypt))
+
+  encrypt = assert_string(ectx:write(DATA33))
+  assert_not_equal(STR(EDATA33), STR(encrypt))
+
+  ectx:reset(IV)
+
+  local encrypt = assert_string(ectx:write(DATA33))
+  assert_equal(STR(EDATA33), STR(encrypt))
+end
+
+function test_reset()
+  local c1 = ectx:open(("2"):rep(32), IV):write(DATA32)
+  local c2 = ectx:reset(IV):write(DATA32)
+  local c3 = ectx:reset(KEY, IV):write(DATA32)
+
+  assert_not_equal(STR(EDATA32), STR(c1))
+  assert_equal(STR(c1), STR(c2))
+  assert_equal(STR(EDATA32), STR(c3))
+end
+
+function test_reset_open()
+  assert_true(ectx:closed())
+  ectx:open(KEY,IV)  assert_false(ectx:closed())
+  ectx:close()       assert_true(ectx:closed())
+
+  assert_equal(ectx, ectx:reset(IV))
+  assert_true(ectx:closed())
+
+  -- reset could open context
+  assert_equal(ectx, ectx:reset(KEY,IV))
+  assert_false(ectx:closed())
+
+  -- we can not reopen context
+  assert_error(function() ectx:open(KEY, IV) end)
+
+  -- but we can reset context with key
+  assert_equal(ectx, ectx:reset(KEY, IV))
+  assert_false(ectx:closed())
 end
 
 end

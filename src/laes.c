@@ -610,7 +610,25 @@ static int l_ecb_write(lua_State *L){
 }
 
 static int l_ecb_reset(lua_State *L){
-  /* l_ecb_ctx *ctx = */l_get_ecb_at(L, 1);
+  l_ecb_ctx *ctx = l_get_ecb_at(L, 1);
+  if(lua_gettop(L) > 1){ /*reset key*/
+    size_t key_len; const unsigned char *key = (unsigned char *)luaL_checklstring(L, 2, &key_len);
+    int result;
+
+    if(CTX_FLAG(ctx, DECRYPT))
+      result = aes_decrypt_key(key, key_len, ctx->dctx);
+    else
+      result = aes_encrypt_key(key, key_len, ctx->ectx);
+
+    if(result != EXIT_SUCCESS){
+      luaL_argcheck(L, 0, 2, "invalid key length");
+      return 0;
+    }
+
+    ctx->flags |= FLAG_OPEN;
+  }
+
+  ctx->tail = 0;
   lua_settop(L, 1);
   return 1;
 }
@@ -1020,11 +1038,34 @@ static int l_cbc_write(lua_State *L){
 
 static int l_cbc_reset(lua_State *L){
   l_cbc_ctx *ctx = l_get_cbc_at(L, 1);
-  size_t iv_len;  const unsigned char *iv  = (unsigned char *)luaL_checklstring(L, 2, &iv_len);
 
-  luaL_argcheck(L, iv_len >= IV_SIZE, 1, L_CBC_NAME " invalid iv length" );
-  memcpy(ctx->iv, iv, IV_SIZE);
+  if(lua_gettop(L) > 2){ /*reset key*/
+    size_t key_len; const unsigned char *key = (unsigned char *)luaL_checklstring(L, 2, &key_len);
+    size_t iv_len;  const unsigned char *iv  = (unsigned char *)luaL_checklstring(L, 3, &iv_len);
+    int result;
 
+    luaL_argcheck(L, iv_len >= IV_SIZE, 1, L_CBC_NAME " invalid iv length" );
+    memcpy(ctx->iv, iv, IV_SIZE);
+
+    if(CTX_FLAG(ctx, DECRYPT))
+      result = aes_decrypt_key(key, key_len, ctx->dctx);
+    else
+      result = aes_encrypt_key(key, key_len, ctx->ectx);
+
+    if(result != EXIT_SUCCESS){
+      luaL_argcheck(L, 0, 2, "invalid key length");
+      return 0;
+    }
+
+    ctx->flags |= FLAG_OPEN;
+  }
+  else{
+    size_t iv_len;  const unsigned char *iv  = (unsigned char *)luaL_checklstring(L, 2, &iv_len);
+    luaL_argcheck(L, iv_len >= IV_SIZE, 1, L_CBC_NAME " invalid iv length" );
+    memcpy(ctx->iv, iv, IV_SIZE);
+  }
+
+  ctx->tail = 0;
   lua_settop(L, 1);
   return 1;
 }
@@ -1359,10 +1400,32 @@ static int l_cfb_write(lua_State *L){
 
 static int l_cfb_reset(lua_State *L){
   l_cfb_ctx *ctx = l_get_cfb_at(L, 1);
-  size_t iv_len;  const unsigned char *iv  = (unsigned char *)luaL_checklstring(L, 2, &iv_len);
 
-  luaL_argcheck(L, iv_len >= IV_SIZE, 1, L_CFB_NAME " invalid iv length" );
-  memcpy(ctx->iv, iv, IV_SIZE);
+  if(lua_gettop(L) > 2){ /*reset key*/
+    size_t key_len; const unsigned char *key = (unsigned char *)luaL_checklstring(L, 2, &key_len);
+    size_t iv_len;  const unsigned char *iv  = (unsigned char *)luaL_checklstring(L, 3, &iv_len);
+    int result;
+
+    luaL_argcheck(L, iv_len >= IV_SIZE, 1, L_CFB_NAME " invalid iv length" );
+    memcpy(ctx->iv, iv, IV_SIZE);
+
+    if(CTX_FLAG(ctx, DECRYPT))
+      result = aes_decrypt_key(key, key_len, ctx->dctx);
+    else
+      result = aes_encrypt_key(key, key_len, ctx->ectx);
+
+    if(result != EXIT_SUCCESS){
+      luaL_argcheck(L, 0, 2, "invalid key length");
+      return 0;
+    }
+
+    ctx->flags |= FLAG_OPEN;
+  }
+  else{
+    size_t iv_len;  const unsigned char *iv  = (unsigned char *)luaL_checklstring(L, 2, &iv_len);
+    luaL_argcheck(L, iv_len >= IV_SIZE, 1, L_CFB_NAME " invalid iv length" );
+    memcpy(ctx->iv, iv, IV_SIZE);
+  }
 
   aes_mode_reset(ctx->ctx);
 
@@ -1698,10 +1761,32 @@ static int l_ofb_write(lua_State *L){
 
 static int l_ofb_reset(lua_State *L){
   l_ofb_ctx *ctx = l_get_ofb_at(L, 1);
-  size_t iv_len;  const unsigned char *iv  = (unsigned char *)luaL_checklstring(L, 2, &iv_len);
 
-  luaL_argcheck(L, iv_len >= IV_SIZE, 1, L_OFB_NAME " invalid iv length" );
-  memcpy(ctx->iv, iv, IV_SIZE);
+  if(lua_gettop(L) > 2){ /*reset key*/
+    size_t key_len; const unsigned char *key = (unsigned char *)luaL_checklstring(L, 2, &key_len);
+    size_t iv_len;  const unsigned char *iv  = (unsigned char *)luaL_checklstring(L, 3, &iv_len);
+    int result;
+
+    luaL_argcheck(L, iv_len >= IV_SIZE, 1, L_OFB_NAME " invalid iv length" );
+    memcpy(ctx->iv, iv, IV_SIZE);
+
+    if(CTX_FLAG(ctx, DECRYPT))
+      result = aes_decrypt_key(key, key_len, ctx->dctx);
+    else
+      result = aes_encrypt_key(key, key_len, ctx->ectx);
+
+    if(result != EXIT_SUCCESS){
+      luaL_argcheck(L, 0, 2, "invalid key length");
+      return 0;
+    }
+
+    ctx->flags |= FLAG_OPEN;
+  }
+  else{
+    size_t iv_len;  const unsigned char *iv  = (unsigned char *)luaL_checklstring(L, 2, &iv_len);
+    luaL_argcheck(L, iv_len >= IV_SIZE, 1, L_OFB_NAME " invalid iv length" );
+    memcpy(ctx->iv, iv, IV_SIZE);
+  }
 
   aes_mode_reset(ctx->ctx);
 
@@ -2070,10 +2155,32 @@ static int l_ctr_write(lua_State *L){
 
 static int l_ctr_reset(lua_State *L){
   l_ctr_ctx *ctx = l_get_ctr_at(L, 1);
-  size_t iv_len;  const unsigned char *iv  = (unsigned char *)luaL_checklstring(L, 2, &iv_len);
 
-  luaL_argcheck(L, iv_len >= IV_SIZE, 1, L_CTR_NAME " invalid iv length" );
-  memcpy(ctx->iv, iv, IV_SIZE);
+  if(lua_gettop(L) > 2){ /*reset key*/
+    size_t key_len; const unsigned char *key = (unsigned char *)luaL_checklstring(L, 2, &key_len);
+    size_t iv_len;  const unsigned char *iv  = (unsigned char *)luaL_checklstring(L, 3, &iv_len);
+    int result;
+
+    luaL_argcheck(L, iv_len >= IV_SIZE, 1, L_CTR_NAME " invalid iv length" );
+    memcpy(ctx->iv, iv, IV_SIZE);
+
+    if(CTX_FLAG(ctx, DECRYPT))
+      result = aes_decrypt_key(key, key_len, ctx->dctx);
+    else
+      result = aes_encrypt_key(key, key_len, ctx->ectx);
+
+    if(result != EXIT_SUCCESS){
+      luaL_argcheck(L, 0, 2, "invalid key length");
+      return 0;
+    }
+
+    ctx->flags |= FLAG_OPEN;
+  }
+  else{
+    size_t iv_len;  const unsigned char *iv  = (unsigned char *)luaL_checklstring(L, 2, &iv_len);
+    luaL_argcheck(L, iv_len >= IV_SIZE, 1, L_CTR_NAME " invalid iv length" );
+    memcpy(ctx->iv, iv, IV_SIZE);
+  }
 
   aes_mode_reset(ctx->ctx);
 
