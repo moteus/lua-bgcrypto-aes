@@ -1,4 +1,5 @@
 -- http://csrc.nist.gov/publications/nistpubs/800-38B/SP_800-38B.pdf
+-- RFC 4493
 
 local function orequire(...)
   for i = 1, select('#', ...) do
@@ -10,16 +11,17 @@ end
 
 local bit = assert(orequire("bit", "bit32"), 'no bit32 module')
 
-local sbyte   = string.byte
-local schar   = function(ch) return string.char(bit.band(ch, 0xFF)) end
-local sgsub   = string.gsub
-local ssub    = string.sub
-local srep    = string.rep
 local bxor    = bit.bxor
 local bor     = bit.bor
 local band    = bit.band
 local blshift = bit.lshift
 local brshift = bit.rshift
+local sbyte   = string.byte
+local schar_  = string.char
+local schar   = function(b) return schar_(band(b, 0xFF)) end
+local sgsub   = string.gsub
+local ssub    = string.sub
+local srep    = string.rep
 
 local function char_at(str, i) return (ssub(str,i,i))              end
 
@@ -57,13 +59,12 @@ local function str_lshift(str, n)
   local ch = clshift(char_at(str, 1), n)
   for i = 2, #str do
     local b = byte_at(str, i)
-    local s = brshift(band(mask, b), 8-n)
+    local s = brshift(band(b, mask), 8-n)
     res = res .. cor(ch, s)
-    ch = clshift(char_at(str, i), n)
+    ch = schar(blshift(b, n))
   end
-  res = res .. ch
 
-  return res
+  return res .. ch
 end
 
 -- 7FFF << 1 = FFFE
@@ -111,7 +112,6 @@ local function cmac_digest(ALGO, K, M)
     if last_block_pos == #M then
       last_block_pos = (nblocks - 1) * ALGO.BLOCK_SIZE
     end
-    last_block_pos = last_block_pos
 
     -- we can use any size. 
     for b, size in ichunks(last_block_pos, ALGO.BLOCK_SIZE * 2) do
@@ -156,6 +156,7 @@ function cmac:clone()
       key  = self.private_.key;
       key1 = self.private_.key1;
       key2 = self.private_.key2;
+      tail = self.private_.tail;
     }
   },cmac)
 
@@ -209,15 +210,9 @@ function cmac:digest(chunk, text)
   local BLOCK_SIZE = self.private_.algo.BLOCK_SIZE
   if type(chunk) ~= 'string' then text, chunk = chunk end
 
-  local chunk, Mn = 
-    split_tail(self.private_.tail, chunk or '', self.private_.algo.BLOCK_SIZE)
+  if chunk then self:update(chunk) end
 
-  if #chunk > 0 then
-    local c = self.private_.ectx:write(chunk)
-    assert(#c == #chunk)
-  end
-
-  self.private_.tail = Mn
+  local Mn = self.private_.tail
 
   local ectx = self.private_.ectx:clone()
 
@@ -235,7 +230,7 @@ end
 
 function cmac:destroy()
   if not self.private_ then return end
-  self.private_.hctx:destroy()
+  self.private_.ectx:destroy()
   self.private_ = nil
 end
 
@@ -243,121 +238,6 @@ function cmac:destroyed()
   return not not self.private_
 end
 
-end
-
-local aes = require "bgcrypto.aes"
-
-local function HEX(str)
-  str = str:gsub("%s", "")
-  return (string.gsub(str, "..", function(p)
-    return (string.char(tonumber(p, 16)))
-  end))
-end
-
-local function STR(str)
-  return (string.gsub(str, ".", function(p)
-    return (string.format("%.2x", string.byte(p)))
-  end))
-end
-
-local TEST_KEY = {
-  {
-    ALGO = aes;
-    KEY  = HEX"2b7e1516 28aed2a6 abf71588 09cf4f3c";
-    K1   = HEX"fbeed618 35713366 7c85e08f 7236a8de";
-    K2   = HEX"f7ddac30 6ae266cc f90bc11e e46d513b";
-    {
-      M = "";
-      T = HEX"bb1d6929 e9593728 7fa37d12 9b756746";
-    },
-    {
-      M = HEX"6bc1bee2 2e409f96 e93d7e11 7393172a";
-      T = HEX"070a16b4 6b4d4144 f79bdd9d d04a287c";
-    },
-    {
-       M = HEX[[ 6bc1bee2 2e409f96 e93d7e11 7393172a
-                   ae2d8a57 1e03ac9c 9eb76fac 45af8e51
-                   30c81c46 a35ce411]];
-       T = HEX"dfa66747 de9ae630 30ca3261 1497c827";
-    },
-  };
-  {
-    ALGO = aes;
-    KEY = HEX"8e73b0f7 da0e6452 c810f32b 809079e5 62f8ead2 522c6b7b";
-    K1  = HEX"448a5b1c 93514b27 3ee6439d d4daa296";
-    K2  = HEX"8914b639 26a2964e 7dcc873b a9b5452c";
-    {
-      M = "";
-      T = HEX"d17ddf46 adaacde5 31cac483 de7a9367";
-    },
-    {
-      M = HEX"6bc1bee2 2e409f96 e93d7e11 7393172a";
-      T = HEX"9e99a7bf 31e71090 0662f65e 617c5184";
-    },
-    {
-      M = HEX[[
-        6bc1bee2 2e409f96 e93d7e11 7393172a
-        ae2d8a57 1e03ac9c 9eb76fac 45af8e51
-        30c81c46 a35ce411 
-      ]];
-      T = HEX"8a1de5be 2eb31aad 089a82e6 ee908b0e";
-    },
-    {
-      M = HEX[[
-        6bc1bee2 2e409f96 e93d7e11 7393172a
-        ae2d8a57 1e03ac9c 9eb76fac 45af8e51
-        30c81c46 a35ce411 e5fbc119 1a0a52ef
-        f69f2445 df4f9b17 ad2b417b e66c3710
-       ]];
-      T = HEX"a1d5df0e ed790f79 4d775896 59f39a11";
-    },
-  };
-  {
-    ALGO = aes;
-    KEY = HEX"603deb10 15ca71be 2b73aef0 857d7781 1f352c07 3b6108d7 2d9810a3 0914dff4";
-    K1  = HEX"cad1ed03 299eedac 2e9a9980 8621502f";
-    K2  = HEX"95a3da06 533ddb58 5d353301 0c42a0d9";
-    {
-      M = "";
-      T = HEX"028962f6 1b7bf89e fc6b551f 4667d983";
-    },
-    {
-      M = HEX"6bc1bee2 2e409f96 e93d7e11 7393172a";
-      T = HEX"28a7023f 452e8f82 bd4bf28d 8c37c35c";
-    },
-    {
-      M = HEX[[
-        6bc1bee2 2e409f96 e93d7e11 7393172a
-        ae2d8a57 1e03ac9c 9eb76fac 45af8e51
-        30c81c46 a35ce411 
-      ]];
-      T = HEX"aaf3d8f1 de5640c2 32f5b169 b9c911e6";
-    },
-    {
-      M = HEX[[
-        6bc1bee2 2e409f96 e93d7e11 7393172a
-        ae2d8a57 1e03ac9c 9eb76fac 45af8e51
-        30c81c46 a35ce411 e5fbc119 1a0a52ef
-        f69f2445 df4f9b17 ad2b417b e66c3710
-       ]];
-      T = HEX"e1992190 549f6ed5 696a2c05 6c315410";
-    },
-  };
-}
-
-for _, test in ipairs(TEST_KEY) do
-  local k1, k2 = cmac_key(test.ALGO, test.KEY)
-  assert(test.K1 == k1)
-  assert(test.K2 == k2)
-  for _, data in ipairs(test) do
-    local c = cmac_digest(test.ALGO, test.KEY, data.M)
-    assert(c == data.T, '\n  Exp:' .. STR(data.T) .. '\n  Got:' .. STR(c))
-
-    local d = cmac:new(test.ALGO, test.KEY)
-    d:update(data.M)
-    c = d:digest()
-    assert(c == data.T)
-  end
 end
 
 return{

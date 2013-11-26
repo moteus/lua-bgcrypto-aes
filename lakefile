@@ -18,6 +18,7 @@ target('build', aes)
 
 install = target('install', {
   file.group{odir = J(LIBDIR, 'bgcrypto'); src = aes  };
+  file.group{odir = J(LIBDIR, 'bgcrypto'); src = J('src', 'lua', '*')};
   file.group{odir = TESTDIR; src = J('test', '*')     };
 })
 
