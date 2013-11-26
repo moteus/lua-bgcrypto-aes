@@ -23,6 +23,12 @@ local sgsub   = string.gsub
 local ssub    = string.sub
 local srep    = string.rep
 
+local function STR(str)
+  return (string.gsub(str, ".", function(p)
+    return (string.format("%.2x", string.byte(p)))
+  end))
+end
+
 local function char_at(str, i) return (ssub(str,i,i))              end
 
 local function byte_at(str, i) return (sbyte(str,i))               end
@@ -101,7 +107,7 @@ local function ichunks(len, chunk_size)
   end, nil, -chunk_size + 1
 end
 
-local function cmac_digest(ALGO, K, M)
+local function cmac_digest(ALGO, K, M, text)
   local K1, K2 = cmac_key(ALGO, K)
   local CIPH = ALGO.cbc_encrypter():open(K, ('\0'):rep(ALGO.BLOCK_SIZE))
   local chunk, C
@@ -131,7 +137,7 @@ local function cmac_digest(ALGO, K, M)
 
   CIPH:destroy()
 
-  return C
+  return text and STR(C) or C
 end
 
 local cmac = {} do 
@@ -224,6 +230,8 @@ function cmac:digest(chunk, text)
   end
 
   local C = ectx:write(chunk)
+
+  ectx:destroy()
 
   return text and STR(C) or C
 end

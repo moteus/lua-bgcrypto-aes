@@ -1455,11 +1455,19 @@ function test_nist()
       local c = cmac.digest(test.ALGO, test.KEY, data.M)
       assert_equal(STR(data.T), STR(c))
 
+      c = cmac.digest(test.ALGO, test.KEY, data.M, true)
+      assert_equal(STR(data.T), c)
+
       local d = cmac.new(test.ALGO, test.KEY)
       d:update(data.M)
+
       c = d:digest()
-      d:destroy()
       assert_equal(STR(data.T), STR(c))
+
+      c = d:digest(true)
+      assert_equal(STR(data.T), c)
+
+      d:destroy()
     end
   end
 end
