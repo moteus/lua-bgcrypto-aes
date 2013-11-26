@@ -39,6 +39,9 @@ before_install:
   - cd $TRAVIS_BUILD_DIR
 
 install:
+  - if [ $LUA = "lua5.1" ]; then
+      sudo luarocks install bit32;
+    fi
   - sudo apt-get install libzmq3
   - sudo apt-get install libzmq3-dev
   - sudo luarocks install lzmq
