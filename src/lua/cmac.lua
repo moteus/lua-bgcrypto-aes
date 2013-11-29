@@ -107,24 +107,37 @@ local function ichunks(len, chunk_size)
   end, nil, -chunk_size + 1
 end
 
-local function cmac_digest(ALGO, K, M, text)
+local function cmac_digest(ALGO, K, M, i, size, text)
   local K1, K2 = cmac_key(ALGO, K)
   local CIPH = ALGO.cbc_encrypter():open(K, ('\0'):rep(ALGO.BLOCK_SIZE))
   local chunk, C
 
+  if type(i) ~= 'number' then
+    text = not not i
+    size = #M
+    i    = 1
+  else
+    if type(size) ~= 'number' then
+      size, text = #M, not not size
+    end
+  end
+
+  assert(i > 0)
+  assert(size >= 0)
+
   if #M > 0 then
-    local nblocks = math.floor(#M / ALGO.BLOCK_SIZE)
+    local nblocks = math.floor(size / ALGO.BLOCK_SIZE)
     local last_block_pos = nblocks * ALGO.BLOCK_SIZE
-    if last_block_pos == #M then
+    if last_block_pos == size then
       last_block_pos = (nblocks - 1) * ALGO.BLOCK_SIZE
     end
 
     -- we can use any size. 
     for b, size in ichunks(last_block_pos, ALGO.BLOCK_SIZE * 2) do
-      CIPH:write(M, b, size)
+      CIPH:write(M, b + i - 1, size)
     end
 
-    chunk = M:sub(last_block_pos + 1)
+    chunk = M:sub(last_block_pos + i, last_block_pos + i + size - 1)
   else chunk = "" end
 
   if #chunk == ALGO.BLOCK_SIZE then
@@ -198,7 +211,14 @@ local function split_tail(tail, str, BLOCK_SIZE)
   return string.sub(chunk, 1, len), (string.sub(chunk, len+1))
 end
 
-function cmac:update(chunk)
+function cmac:update(chunk, i, size)
+  if type(i) == 'number' then
+    if type(size) ~= 'number' then
+      size, text = #chunk, not not size
+    end
+    chunk = string.sub(chunk, i, i + size - 1)
+  end
+
   if #chunk == 0 then return self end
 
   chunk, self.private_.tail = 
@@ -212,11 +232,22 @@ function cmac:update(chunk)
   return self
 end
 
-function cmac:digest(chunk, text)
+function cmac:digest(chunk, i, size, text)
   local BLOCK_SIZE = self.private_.algo.BLOCK_SIZE
-  if type(chunk) ~= 'string' then text, chunk = chunk end
 
-  if chunk then self:update(chunk) end
+  if type(chunk) == 'string' then
+    if type(i) ~= 'number' then 
+      text = not not i
+      i, size = nil
+    else
+      if type(size) ~= 'number' then
+        size, text = #chunk, not not size
+      end
+    end
+    self:update(chunk, i, size)
+  else
+    text = not not chunk
+  end
 
   local Mn = self.private_.tail
 
