@@ -1,5 +1,6 @@
 [![Build Status](https://travis-ci.org/moteus/lua-bgcrypto-aes.png?branch=master)](https://travis-ci.org/moteus/lua-bgcrypto-aes)
-
+[![Build status](https://ci.appveyor.com/api/projects/status/c06ab28rehq703kh?svg=true)](https://ci.appveyor.com/project/moteus/lua-bgcrypto-aes)
+[![Coverage Status](https://coveralls.io/repos/github/moteus/lua-bgcrypto-aes/badge.svg?branch=master)](https://coveralls.io/github/moteus/lua-bgcrypto-aes?branch=master)
 
 Binding to [AES](http://www.gladman.me.uk/cryptography_technology/fileencrypt) encrypt library.
 
