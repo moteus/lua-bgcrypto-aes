@@ -38,6 +38,7 @@ build = {
       },
       incdirs = {'src/aes'},
     },
+    ['bgcrypto.private.bit'] = 'src/lua/private/bit.lua',
     ["bgcrypto.cmac"] = 'src/lua/cmac.lua',
   },
 }

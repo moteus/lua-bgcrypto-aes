@@ -1,15 +1,7 @@
 -- http://csrc.nist.gov/publications/nistpubs/800-38B/SP_800-38B.pdf
 -- RFC 4493
 
-local function orequire(...)
-  for i = 1, select('#', ...) do
-    local name = select(i, ...)
-    local ok, mod = pcall(require, name)
-    if ok then return mod, name end
-  end
-end
-
-local bit = assert(orequire("bit", "bit32"), 'no bit32 module')
+local bit = require "bgcrypto.private.bit"
 
 local bxor    = bit.bxor
 local bor     = bit.bor

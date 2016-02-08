@@ -259,7 +259,7 @@ static l_ecb_ctx *l_get_ecb_at (lua_State *L, int i) {
 }
 
 static int l_ecb_new(lua_State *L, int decrypt){
-  size_t buf_len = luaL_optint(L, 1, DEFAULT_BUFFER_SIZE);
+  size_t buf_len = luaL_optinteger(L, 1, DEFAULT_BUFFER_SIZE);
   const size_t ctx_len = sizeof(l_ecb_ctx) + buf_len - 1;
   l_ecb_ctx *ctx;
 
@@ -278,7 +278,7 @@ static int l_ecb_new(lua_State *L, int decrypt){
 
 static int l_ecb_clone(lua_State *L){
   l_ecb_ctx *ctx = l_get_ecb_at(L, 1);
-  size_t buf_len = luaL_optint(L, 2, ctx->buffer_size);
+  size_t buf_len = luaL_optinteger(L, 2, ctx->buffer_size);
   const size_t ctx_len = sizeof(l_ecb_ctx) + buf_len - 1;
   l_ecb_ctx *ctx2;
 
@@ -680,7 +680,7 @@ static l_cbc_ctx *l_get_cbc_at (lua_State *L, int i) {
 }
 
 static int l_cbc_new(lua_State *L, int decrypt){
-  size_t buf_len = luaL_optint(L, 1, DEFAULT_BUFFER_SIZE);
+  size_t buf_len = luaL_optinteger(L, 1, DEFAULT_BUFFER_SIZE);
   const size_t ctx_len = sizeof(l_cbc_ctx) + buf_len - 1;
   l_cbc_ctx *ctx;
 
@@ -699,7 +699,7 @@ static int l_cbc_new(lua_State *L, int decrypt){
 
 static int l_cbc_clone(lua_State *L){
   l_cbc_ctx *ctx = l_get_cbc_at(L, 1);
-  size_t buf_len = luaL_optint(L, 2, ctx->buffer_size);
+  size_t buf_len = luaL_optinteger(L, 2, ctx->buffer_size);
   const size_t ctx_len = sizeof(l_cbc_ctx) + buf_len - 1;
   l_cbc_ctx *ctx2;
 
@@ -1116,7 +1116,7 @@ static l_cfb_ctx *l_get_cfb_at (lua_State *L, int i) {
 }
 
 static int l_cfb_new(lua_State *L, int decrypt){
-  size_t buf_len = luaL_optint(L, 1, DEFAULT_BUFFER_SIZE);
+  size_t buf_len = luaL_optinteger(L, 1, DEFAULT_BUFFER_SIZE);
   const size_t ctx_len = sizeof(l_cfb_ctx) + buf_len - 1;
   l_cfb_ctx *ctx;
 
@@ -1135,7 +1135,7 @@ static int l_cfb_new(lua_State *L, int decrypt){
 
 static int l_cfb_clone(lua_State *L){
   l_cfb_ctx *ctx = l_get_cfb_at(L, 1);
-  size_t buf_len = luaL_optint(L, 2, ctx->buffer_size);
+  size_t buf_len = luaL_optinteger(L, 2, ctx->buffer_size);
   const size_t ctx_len = sizeof(l_cfb_ctx) + buf_len - 1;
   l_cfb_ctx *ctx2;
 
@@ -1479,7 +1479,7 @@ static l_ofb_ctx *l_get_ofb_at (lua_State *L, int i) {
 }
 
 static int l_ofb_new(lua_State *L, int decrypt){
-  size_t buf_len = luaL_optint(L, 1, DEFAULT_BUFFER_SIZE);
+  size_t buf_len = luaL_optinteger(L, 1, DEFAULT_BUFFER_SIZE);
   const size_t ctx_len = sizeof(l_ofb_ctx) + buf_len - 1;
   l_ofb_ctx *ctx;
 
@@ -1498,7 +1498,7 @@ static int l_ofb_new(lua_State *L, int decrypt){
 
 static int l_ofb_clone(lua_State *L){
   l_ofb_ctx *ctx = l_get_ofb_at(L, 1);
-  size_t buf_len = luaL_optint(L, 2, ctx->buffer_size);
+  size_t buf_len = luaL_optinteger(L, 2, ctx->buffer_size);
   const size_t ctx_len = sizeof(l_ofb_ctx) + buf_len - 1;
   l_ofb_ctx *ctx2;
 
@@ -1869,7 +1869,7 @@ static l_ctr_ctx *l_get_ctr_at (lua_State *L, int i) {
 }
 
 static int l_ctr_new(lua_State *L, int decrypt){
-  size_t buf_len = luaL_optint(L, 1, DEFAULT_BUFFER_SIZE);
+  size_t buf_len = luaL_optinteger(L, 1, DEFAULT_BUFFER_SIZE);
   const size_t ctx_len = sizeof(l_ctr_ctx) + buf_len - 1;
   l_ctr_ctx *ctx;
 
@@ -1889,7 +1889,7 @@ static int l_ctr_new(lua_State *L, int decrypt){
 
 static int l_ctr_clone(lua_State *L){
   l_ctr_ctx *ctx = l_get_ctr_at(L, 1);
-  size_t buf_len = luaL_optint(L, 2, ctx->buffer_size);
+  size_t buf_len = luaL_optinteger(L, 2, ctx->buffer_size);
   const size_t ctx_len = sizeof(l_ctr_ctx) + buf_len - 1;
   l_ctr_ctx *ctx2;
 
