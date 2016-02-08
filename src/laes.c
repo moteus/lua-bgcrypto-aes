@@ -33,6 +33,24 @@
 #  endif
 #endif
 
+#if LUA_VERSION_NUM >= 502 /* Lua 5.2 */
+
+#if LUA_VERSION_NUM < 503 /* Lua 5.2 */
+
+typedef int lua_KContext;
+
+typedef lua_CFunction lua_KFunction;
+
+#endif
+
+#if LUA_VERSION_NUM < 503
+#  define KFUNCTION(F) F(lua_State *L)
+#else
+#  define KFUNCTION(F) F(lua_State *L, int status, lua_KContext ctx)
+#endif
+
+#endif
+
 static int fail(lua_State *L, const char *msg){
   lua_pushnil(L);
   lua_pushstring(L, msg);
@@ -518,13 +536,22 @@ static int l_ecb_write_impl(lua_State *L){
 
 #if LUA_VERSION_NUM >= 502 // lua 5.2
 
-static int l_ecb_writek_impl(lua_State *L){
+static int l_ecb_writek_impl(lua_State *L, int status, lua_KContext lctx);
+
+static int KFUNCTION(l_ecb_writek){
+#if LUA_VERSION_NUM < 503
+  lua_KContext ctx; int status = lua_getctx(L, &ctx);
+#endif
+  return l_ecb_writek_impl(L, status, ctx);
+}
+
+static int l_ecb_writek_impl(lua_State *L, int status, lua_KContext lctx){
   l_ecb_ctx *ctx = l_get_ecb_at(L, 1);
   size_t len, align_len;
   const unsigned char *data, *b, *e;
   int ret;
 
-  if(LUA_OK != lua_getctx(L, NULL)){
+  if(LUA_OK != status){
     assert(lua_gettop(L) == 4);
     data = lua_touserdata(L, -2);
     len  = lua_tointeger(L, -1);
@@ -562,7 +589,7 @@ static int l_ecb_writek_impl(lua_State *L){
     {
       int n = l_ecb_push_writer(L, ctx);
       lua_pushlstring(L, (char*)ctx->buffer + AES_BLOCK_SIZE, AES_BLOCK_SIZE);
-      lua_callk(L, n, 0, 2, l_ecb_writek_impl);
+      lua_callk(L, n, 0, 2, l_ecb_writek);
     }
   }
   align_len = (len >> AES_BLOCK_NB) << AES_BLOCK_NB;
@@ -584,7 +611,7 @@ static int l_ecb_writek_impl(lua_State *L){
     {
       int n = l_ecb_push_writer(L, ctx);
       lua_pushlstring(L, (char*)ctx->buffer, left);
-      lua_callk(L, n, 0, 2, l_ecb_writek_impl);
+      lua_callk(L, n, 0, 2, l_ecb_writek);
     }
     lua_settop(L, 2);
   }
@@ -603,7 +630,11 @@ static int l_ecb_write(lua_State *L){
 
 #if LUA_VERSION_NUM >= 502 // lua 5.2
   if(ctx->writer_cb_ref != LUA_NOREF)
-    return l_ecb_writek_impl(L);
+    return l_ecb_writek(L
+#if LUA_VERSION_NUM >= 503
+      ,LUA_OK, 0
+#endif
+    );
 #endif
 
   return l_ecb_write_impl(L);
@@ -945,13 +976,22 @@ static int l_cbc_write_impl(lua_State *L){
 
 #if LUA_VERSION_NUM >= 502 // lua 5.2
 
-static int l_cbc_writek_impl(lua_State *L){
+static int l_cbc_writek_impl(lua_State *L, int status, lua_KContext lctx);
+
+static int KFUNCTION(l_cbc_writek){
+#if LUA_VERSION_NUM < 503
+  lua_KContext ctx; int status = lua_getctx(L, &ctx);
+#endif
+  return l_cbc_writek_impl(L, status, ctx);
+}
+
+static int l_cbc_writek_impl(lua_State *L, int status, lua_KContext lctx){
   l_cbc_ctx *ctx = l_get_cbc_at(L, 1);
   size_t len, align_len;
   const unsigned char *data, *b, *e;
   int ret;
 
-  if(LUA_OK != lua_getctx(L, NULL)){
+  if(LUA_OK != status){
     assert(lua_gettop(L) == 4);
     data = lua_touserdata(L, -2);
     len  = lua_tointeger(L, -1);
@@ -989,7 +1029,7 @@ static int l_cbc_writek_impl(lua_State *L){
     {
       int n = l_cbc_push_writer(L, ctx);
       lua_pushlstring(L, (char*)ctx->buffer + AES_BLOCK_SIZE, AES_BLOCK_SIZE);
-      lua_callk(L, n, 0, 2, l_cbc_writek_impl);
+      lua_callk(L, n, 0, 2, l_cbc_writek);
     }
   }
   align_len = (len >> AES_BLOCK_NB) << AES_BLOCK_NB;
@@ -1011,7 +1051,7 @@ static int l_cbc_writek_impl(lua_State *L){
     {
       int n = l_cbc_push_writer(L, ctx);
       lua_pushlstring(L, (char*)ctx->buffer, left);
-      lua_callk(L, n, 0, 2, l_cbc_writek_impl);
+      lua_callk(L, n, 0, 2, l_cbc_writek);
     }
     lua_settop(L, 2);
   }
@@ -1030,7 +1070,11 @@ static int l_cbc_write(lua_State *L){
 
 #if LUA_VERSION_NUM >= 502 // lua 5.2
   if(ctx->writer_cb_ref != LUA_NOREF)
-    return l_cbc_writek_impl(L);
+    return l_cbc_writek(L
+#if LUA_VERSION_NUM >= 503
+      ,LUA_OK, 0
+#endif
+    );
 #endif
 
   return l_cbc_write_impl(L);
@@ -1340,13 +1384,22 @@ static int l_cfb_write_impl(lua_State *L){
 
 #if LUA_VERSION_NUM >= 502 // lua 5.2
 
-static int l_cfb_writek_impl(lua_State *L){
+static int l_cfb_writek_impl(lua_State *L, int status, lua_KContext lctx);
+
+static int KFUNCTION(l_cfb_writek){
+#if LUA_VERSION_NUM < 503
+  lua_KContext ctx; int status = lua_getctx(L, &ctx);
+#endif
+  return l_cfb_writek_impl(L, status, ctx);
+}
+
+static int l_cfb_writek_impl(lua_State *L, int status, lua_KContext lctx){
   l_cfb_ctx *ctx = l_get_cfb_at(L, 1);
   size_t len;
   const unsigned char *data, *b, *e;
   int ret;
 
-  if(LUA_OK != lua_getctx(L, NULL)){
+  if(LUA_OK != status){
     assert(lua_gettop(L) == 4);
     data = lua_touserdata(L, -2);
     len  = lua_tointeger(L, -1);
@@ -1376,7 +1429,7 @@ static int l_cfb_writek_impl(lua_State *L){
     {
       int n = l_cfb_push_writer(L, ctx);
       lua_pushlstring(L, (char*)ctx->buffer, left);
-      lua_callk(L, n, 0, 2, l_cfb_writek_impl);
+      lua_callk(L, n, 0, 2, l_cfb_writek);
     }
     lua_settop(L, 2);
   }
@@ -1392,7 +1445,11 @@ static int l_cfb_write(lua_State *L){
 
 #if LUA_VERSION_NUM >= 502 // lua 5.2
   if(ctx->writer_cb_ref != LUA_NOREF)
-    return l_cfb_writek_impl(L);
+    return l_cfb_writek(L
+#if LUA_VERSION_NUM >= 503
+      ,LUA_OK, 0
+#endif
+    );
 #endif
 
   return l_cfb_write_impl(L);
@@ -1703,13 +1760,22 @@ static int l_ofb_write_impl(lua_State *L){
 
 #if LUA_VERSION_NUM >= 502 // lua 5.2
 
-static int l_ofb_writek_impl(lua_State *L){
+static int l_ofb_writek_impl(lua_State *L, int status, lua_KContext lctx);
+
+static int KFUNCTION(l_ofb_writek){
+#if LUA_VERSION_NUM < 503
+  lua_KContext ctx; int status = lua_getctx(L, &ctx);
+#endif
+  return l_ofb_writek_impl(L, status, ctx);
+}
+
+static int l_ofb_writek_impl(lua_State *L, int status, lua_KContext lctx){
   l_ofb_ctx *ctx = l_get_ofb_at(L, 1);
   size_t len;
   const unsigned char *data, *b, *e;
   int ret;
 
-  if(LUA_OK != lua_getctx(L, NULL)){
+  if(LUA_OK != status){
     assert(lua_gettop(L) == 4);
     data = lua_touserdata(L, -2);
     len  = lua_tointeger(L, -1);
@@ -1737,7 +1803,7 @@ static int l_ofb_writek_impl(lua_State *L){
     {
       int n = l_ofb_push_writer(L, ctx);
       lua_pushlstring(L, (char*)ctx->buffer, left);
-      lua_callk(L, n, 0, 2, l_ofb_writek_impl);
+      lua_callk(L, n, 0, 2, l_ofb_writek);
     }
     lua_settop(L, 2);
   }
@@ -1753,7 +1819,11 @@ static int l_ofb_write(lua_State *L){
 
 #if LUA_VERSION_NUM >= 502 // lua 5.2
   if(ctx->writer_cb_ref != LUA_NOREF)
-    return l_ofb_writek_impl(L);
+    return l_ofb_writek(L
+#if LUA_VERSION_NUM >= 503
+      ,LUA_OK, 0
+#endif
+    );
 #endif
 
   return l_ofb_write_impl(L);
@@ -2095,13 +2165,22 @@ static int l_ctr_write_impl(lua_State *L){
 
 #if LUA_VERSION_NUM >= 502 // lua 5.2
 
-static int l_ctr_writek_impl(lua_State *L){
+static int l_ctr_writek_impl(lua_State *L, int status, lua_KContext lctx);
+
+static int KFUNCTION(l_ctr_writek){
+#if LUA_VERSION_NUM < 503
+  lua_KContext ctx; int status = lua_getctx(L, &ctx);
+#endif
+  return l_ctr_writek_impl(L, status, ctx);
+}
+
+static int l_ctr_writek_impl(lua_State *L, int status, lua_KContext lctx){
   l_ctr_ctx *ctx = l_get_ctr_at(L, 1);
   size_t len;
   const unsigned char *data, *b, *e;
   int ret;
 
-  if(LUA_OK != lua_getctx(L, NULL)){
+  if(LUA_OK != status){
     assert(lua_gettop(L) == 4);
     data = lua_touserdata(L, -2);
     len  = lua_tointeger(L, -1);
@@ -2131,7 +2210,7 @@ static int l_ctr_writek_impl(lua_State *L){
     {
       int n = l_ctr_push_writer(L, ctx);
       lua_pushlstring(L, (char*)ctx->buffer, left);
-      lua_callk(L, n, 0, 3, l_ctr_writek_impl);
+      lua_callk(L, n, 0, 3, l_ctr_writek);
     }
     lua_settop(L, 2);
   }
@@ -2147,7 +2226,11 @@ static int l_ctr_write(lua_State *L){
 
 #if LUA_VERSION_NUM >= 502 // lua 5.2
   if(ctx->writer_cb_ref != LUA_NOREF)
-    return l_ctr_writek_impl(L);
+    return l_ctr_writek(L
+#if LUA_VERSION_NUM >= 503
+      ,LUA_OK, 0
+#endif
+    );
 #endif
 
   return l_ctr_write_impl(L);
