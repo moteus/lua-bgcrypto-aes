@@ -10,7 +10,7 @@ description = {
   summary  = "AES encryption library",
   homepage = "https://github.com/moteus/bgcrypto-aes",
   detailed = [[Binding to Dr Brian Gladman's implementation of AES algorithm.]];
-  -- license = "MIT/X11",
+  license = "BSD",
 }
 
 dependencies = {
