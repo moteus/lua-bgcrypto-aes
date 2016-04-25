@@ -2326,7 +2326,7 @@ static const struct luaL_Reg l_bgcrypto_lib[] = {
   {NULL, NULL}
 };
 
-INT_RETURN luaopen_bgcrypto_aes(lua_State*L){
+LUTL_EXPORT int luaopen_bgcrypto_aes(lua_State*L){
   int top = lua_gettop(L);
 
   if(

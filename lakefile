@@ -2,7 +2,7 @@ PROJECT = 'bgcrypto'
 
 INITLAKEFILE()
 
-DEFINES = L{DEFINES, IF(WINDOWS, 'DLL_EXPORT', '')}
+DEFINES = L{DEFINES, 'RETURN_VALUES', 'VOID_RETURN=void', 'INT_RETURN=int'}
 
 aes = c.shared{'aes',
   base     = 'src',

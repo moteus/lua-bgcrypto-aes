@@ -22,20 +22,13 @@ build = {
 
   type = "builtin",
 
-  platforms = {
-    windows = { modules = {
-      ["bgcrypto.aes"] = {
-        defines = {'DLL_EXPORT'}
-      },
-    }},
-  },
-
   modules = {
     ["bgcrypto.aes"] = {
       sources = {
         'src/aes/aes_modes.c', 'src/aes/aescrypt.c', 'src/aes/aeskey.c',
         'src/aes/aestab.c', 'src/l52util.c', 'src/laes.c'
       },
+      defines = {'RETURN_VALUES', 'VOID_RETURN=void', 'INT_RETURN=int'}
       incdirs = {'src/aes'},
     },
     ['bgcrypto.private.bit'] = 'src/lua/private/bit.lua',
