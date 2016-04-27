@@ -1,5 +1,6 @@
 #include "lua.h"
 #include "aes.h"
+#include "aesopt.h"
 #include "l52util.h"
 #include <assert.h>
 #include <memory.h>
@@ -14,8 +15,6 @@
 #define KEY_LENGTH(mode)  (8 * (mode & 3) + 8)
 #define SALT_LENGTH(mode) (4 * (mode & 3) + 4)
 #define MAC_LENGTH(mode)  (10)
-
-// static_assert( sizeof(aes_encrypt_ctx) == (aes_decrypt_ctx) )
 
 #if AES_BLOCK_SIZE == 16
 #  define AES_BLOCK_NB 4
@@ -50,6 +49,36 @@ typedef lua_CFunction lua_KFunction;
 #endif
 
 #endif
+
+#define L_AES_ALIGN_INT(V, A) (((V) & (A - 1)) ? (((V) | (A - 1)) + 0x01) : (V))
+
+#if defined( USE_INTEL_AES_IF_PRESENT )
+#  define L_AES_ALIGN_CTX_VALUE 16
+#else
+#  define L_AES_ALIGN_CTX_VALUE 0
+#endif
+
+#if L_AES_ALIGN_CTX_VALUE == 0
+#  define L_AES_ALIGNED_SIZE(size) size
+#  define L_AES_ALIGNED_CTX(T, ctx) (T*)ctx
+#else
+#  define L_AES_ALIGNED_SIZE(size) (L_AES_ALIGN_CTX_VALUE + size - 1)
+#  define L_AES_ALIGNED_CTX(T, ctx) (T*)L_AES_ALIGN_INT((uintptr_t)(ctx), L_AES_ALIGN_CTX_VALUE)
+#endif
+
+static void *laes_aligned_newudatap(lua_State *L, size_t size, const void *p) {
+  void* ptr = lutil_newudatap_impl(L, L_AES_ALIGNED_SIZE(size), p);
+  return L_AES_ALIGNED_CTX(void, ptr);
+}
+
+static void *laes_aligned_checkudatap(lua_State *L, int i, const void *p) {
+  void* ptr = lutil_checkudatap(L, i, p);
+  if (!ptr) return NULL;
+  return L_AES_ALIGNED_CTX(void, ptr);
+}
+
+//! @fixme on mingw32 (gcc 4.8.1) this does not work
+#define L_AES_STATIC_ASSERT(A) {(void)(int(*)[(A)?1:0])0;}
 
 static int fail(lua_State *L, const char *msg){
   lua_pushnil(L);
@@ -123,24 +152,25 @@ static const char* correct_range(lua_State *L, int idx, size_t *size){
 static const char * L_AES_CTX = L_AES_NAME;
 
 typedef struct l_aes_ctx_tag{
-  FLAG_TYPE       flags;
   union{
     aes_encrypt_ctx  ctx[1];
     aes_encrypt_ctx ectx[1];
     aes_decrypt_ctx dctx[1];
   };
+  FLAG_TYPE       flags;
   unsigned char   buffer[AES_BLOCK_SIZE];
 } l_aes_ctx;
 
 static l_aes_ctx *l_get_aes_at (lua_State *L, int i) {
-  l_aes_ctx *ctx = (l_aes_ctx *)lutil_checkudatap (L, i, L_AES_CTX);
+  l_aes_ctx *ctx = (l_aes_ctx *)laes_aligned_checkudatap (L, i, L_AES_CTX);
   luaL_argcheck (L, ctx != NULL, 1, L_AES_NAME " expected");
   luaL_argcheck (L, !(ctx->flags & FLAG_DESTROYED), 1, L_AES_NAME " is destroyed");
   return ctx;
 }
 
 static int l_aes_new(lua_State *L, int decrypt){
-  l_aes_ctx *ctx = lutil_newudatap(L, l_aes_ctx, L_AES_CTX);
+  l_aes_ctx *ctx = (l_aes_ctx*)laes_aligned_newudatap(L, sizeof(l_aes_ctx), L_AES_CTX);
+
   memset(ctx, 0, sizeof(l_aes_ctx));
 
   if(decrypt) ctx->flags |= FLAG_DECRYPT;
@@ -157,7 +187,7 @@ static int l_aes_new_decrypt(lua_State *L){
 }
 
 static int l_aes_tostring(lua_State *L){
-  l_aes_ctx *ctx = (l_aes_ctx *)lutil_checkudatap (L, 1, L_AES_CTX);
+  l_aes_ctx *ctx = (l_aes_ctx *)laes_aligned_checkudatap (L, 1, L_AES_CTX);
   lua_pushfstring(L, L_AES_NAME " (%s): %p",
     CTX_FLAG(ctx, DESTROYED)?"destroy":(CTX_FLAG(ctx, OPEN)?"open":"close"),
     ctx
@@ -166,7 +196,7 @@ static int l_aes_tostring(lua_State *L){
 }
 
 static int l_aes_destroy(lua_State *L){
-  l_aes_ctx *ctx = (l_aes_ctx *)lutil_checkudatap (L, 1, L_AES_CTX);
+  l_aes_ctx *ctx = (l_aes_ctx *)laes_aligned_checkudatap (L, 1, L_AES_CTX);
   luaL_argcheck (L, ctx != NULL, 1, L_AES_NAME " expected");
 
   if(ctx->flags & FLAG_DESTROYED) return 0;
@@ -180,7 +210,7 @@ static int l_aes_destroy(lua_State *L){
 }
 
 static int l_aes_destroyed(lua_State *L){
-  l_aes_ctx *ctx = (l_aes_ctx *)lutil_checkudatap (L, 1, L_AES_CTX);
+  l_aes_ctx *ctx = (l_aes_ctx *)laes_aligned_checkudatap (L, 1, L_AES_CTX);
   luaL_argcheck (L, ctx != NULL, 1, L_AES_NAME " expected");
   lua_pushboolean(L, ctx->flags & FLAG_DESTROYED);
   return 1;
@@ -256,12 +286,12 @@ static const struct luaL_Reg l_aes_meth[] = {
 static const char * L_ECB_CTX = L_ECB_NAME;
 
 typedef struct l_ecb_ctx_tag{
-  FLAG_TYPE       flags;
   union{
     aes_encrypt_ctx  ctx[1];
     aes_encrypt_ctx ectx[1];
     aes_decrypt_ctx dctx[1];
   };
+  FLAG_TYPE       flags;
   int             writer_cb_ref;
   int             writer_ud_ref;
   unsigned char   tail;
@@ -270,7 +300,7 @@ typedef struct l_ecb_ctx_tag{
 } l_ecb_ctx;
 
 static l_ecb_ctx *l_get_ecb_at (lua_State *L, int i) {
-  l_ecb_ctx *ctx = (l_ecb_ctx *)lutil_checkudatap (L, i, L_ECB_CTX);
+  l_ecb_ctx *ctx = (l_ecb_ctx *)laes_aligned_checkudatap (L, i, L_ECB_CTX);
   luaL_argcheck (L, ctx != NULL, 1, L_ECB_NAME " expected");
   luaL_argcheck (L, !(ctx->flags & FLAG_DESTROYED), 1, L_ECB_NAME " is destroyed");
   return ctx;
@@ -283,7 +313,7 @@ static int l_ecb_new(lua_State *L, int decrypt){
 
   luaL_argcheck (L, buf_len >= (AES_BLOCK_SIZE * 2), 1, "buffer size is too small");
 
-  ctx = (l_ecb_ctx *)lutil_newudatap_impl(L, ctx_len, L_ECB_CTX);
+  ctx = (l_ecb_ctx *)laes_aligned_newudatap(L, ctx_len, L_ECB_CTX);
   memset(ctx, 0, ctx_len);
 
   ctx->buffer_size = buf_len;
@@ -302,7 +332,7 @@ static int l_ecb_clone(lua_State *L){
 
   luaL_argcheck (L, buf_len >= (AES_BLOCK_SIZE * 2), 1, "buffer size is too small");
 
-  ctx2 = (l_ecb_ctx *)lutil_newudatap_impl(L, ctx_len, L_ECB_CTX);
+  ctx2 = (l_ecb_ctx *)laes_aligned_newudatap(L, ctx_len, L_ECB_CTX);
   memset(ctx2, 0, ctx_len);
 
   ctx2->buffer_size    = buf_len;
@@ -325,7 +355,7 @@ static int l_ecb_new_decrypt(lua_State *L){
 }
 
 static int l_ecb_tostring(lua_State *L){
-  l_ecb_ctx *ctx = (l_ecb_ctx *)lutil_checkudatap (L, 1, L_ECB_CTX);
+  l_ecb_ctx *ctx = (l_ecb_ctx *)laes_aligned_checkudatap (L, 1, L_ECB_CTX);
   lua_pushfstring(L, L_ECB_NAME " (%s): %p",
     CTX_FLAG(ctx, DESTROYED)?"destroy":(CTX_FLAG(ctx, OPEN)?"open":"close"),
     ctx
@@ -334,7 +364,7 @@ static int l_ecb_tostring(lua_State *L){
 }
 
 static int l_ecb_destroy(lua_State *L){
-  l_ecb_ctx *ctx = (l_ecb_ctx *)lutil_checkudatap (L, 1, L_ECB_CTX);
+  l_ecb_ctx *ctx = (l_ecb_ctx *)laes_aligned_checkudatap (L, 1, L_ECB_CTX);
   luaL_argcheck (L, ctx != NULL, 1, L_ECB_NAME " expected");
 
   if(ctx->flags & FLAG_DESTROYED) return 0;
@@ -352,7 +382,7 @@ static int l_ecb_destroy(lua_State *L){
 }
 
 static int l_ecb_destroyed(lua_State *L){
-  l_ecb_ctx *ctx = (l_ecb_ctx *)lutil_checkudatap (L, 1, L_ECB_CTX);
+  l_ecb_ctx *ctx = (l_ecb_ctx *)laes_aligned_checkudatap (L, 1, L_ECB_CTX);
   luaL_argcheck (L, ctx != NULL, 1, L_ECB_NAME " expected");
   lua_pushboolean(L, ctx->flags & FLAG_DESTROYED);
   return 1;
@@ -689,12 +719,12 @@ static const struct luaL_Reg l_ecb_meth[] = {
 static const char * L_CBC_CTX = L_CBC_NAME;
 
 typedef struct l_cbc_ctx_tag{
-  FLAG_TYPE       flags;
   union{
     aes_encrypt_ctx  ctx[1];
     aes_encrypt_ctx ectx[1];
     aes_decrypt_ctx dctx[1];
   };
+  FLAG_TYPE       flags;
   unsigned char   iv[IV_SIZE];
   int             writer_cb_ref;
   int             writer_ud_ref;
@@ -704,7 +734,7 @@ typedef struct l_cbc_ctx_tag{
 } l_cbc_ctx;
 
 static l_cbc_ctx *l_get_cbc_at (lua_State *L, int i) {
-  l_cbc_ctx *ctx = (l_cbc_ctx *)lutil_checkudatap (L, i, L_CBC_CTX);
+  l_cbc_ctx *ctx = (l_cbc_ctx *)laes_aligned_checkudatap (L, i, L_CBC_CTX);
   luaL_argcheck (L, ctx != NULL, 1, L_CBC_NAME " expected");
   luaL_argcheck (L, !(ctx->flags & FLAG_DESTROYED), 1, L_CBC_NAME " is destroyed");
   return ctx;
@@ -717,7 +747,7 @@ static int l_cbc_new(lua_State *L, int decrypt){
 
   luaL_argcheck (L, buf_len >= (AES_BLOCK_SIZE * 2), 1, "buffer size is too small");
 
-  ctx = (l_cbc_ctx *)lutil_newudatap_impl(L, ctx_len, L_CBC_CTX);
+  ctx = (l_cbc_ctx *)laes_aligned_newudatap(L, ctx_len, L_CBC_CTX);
   memset(ctx, 0, ctx_len);
 
   ctx->buffer_size = buf_len;
@@ -736,7 +766,7 @@ static int l_cbc_clone(lua_State *L){
 
   luaL_argcheck (L, buf_len >= (AES_BLOCK_SIZE * 2), 1, "buffer size is too small");
 
-  ctx2 = (l_cbc_ctx *)lutil_newudatap_impl(L, ctx_len, L_CBC_CTX);
+  ctx2 = (l_cbc_ctx *)laes_aligned_newudatap(L, ctx_len, L_CBC_CTX);
   memset(ctx2, 0, ctx_len);
 
   ctx2->buffer_size    = buf_len;
@@ -760,7 +790,7 @@ static int l_cbc_new_decrypt(lua_State *L){
 }
 
 static int l_cbc_tostring(lua_State *L){
-  l_cbc_ctx *ctx = (l_cbc_ctx *)lutil_checkudatap (L, 1, L_CBC_CTX);
+  l_cbc_ctx *ctx = (l_cbc_ctx *)laes_aligned_checkudatap (L, 1, L_CBC_CTX);
   lua_pushfstring(L, L_CBC_NAME " (%s): %p",
     CTX_FLAG(ctx, DESTROYED)?"destroy":(CTX_FLAG(ctx, OPEN)?"open":"close"),
     ctx
@@ -769,7 +799,7 @@ static int l_cbc_tostring(lua_State *L){
 }
 
 static int l_cbc_destroy(lua_State *L){
-  l_cbc_ctx *ctx = (l_cbc_ctx *)lutil_checkudatap (L, 1, L_CBC_CTX);
+  l_cbc_ctx *ctx = (l_cbc_ctx *)laes_aligned_checkudatap (L, 1, L_CBC_CTX);
   luaL_argcheck (L, ctx != NULL, 1, L_CBC_NAME " expected");
 
   if(ctx->flags & FLAG_DESTROYED) return 0;
@@ -787,7 +817,7 @@ static int l_cbc_destroy(lua_State *L){
 }
 
 static int l_cbc_destroyed(lua_State *L){
-  l_cbc_ctx *ctx = (l_cbc_ctx *)lutil_checkudatap (L, 1, L_CBC_CTX);
+  l_cbc_ctx *ctx = (l_cbc_ctx *)laes_aligned_checkudatap (L, 1, L_CBC_CTX);
   luaL_argcheck (L, ctx != NULL, 1, L_CBC_NAME " expected");
   lua_pushboolean(L, ctx->flags & FLAG_DESTROYED);
   return 1;
@@ -1139,12 +1169,12 @@ static const struct luaL_Reg l_cbc_meth[] = {
 static const char * L_CFB_CTX = L_CFB_NAME;
 
 typedef struct l_cfb_ctx_tag{
-  FLAG_TYPE       flags;
   union{
     aes_encrypt_ctx  ctx[1];
     aes_encrypt_ctx ectx[1];
     aes_decrypt_ctx dctx[1];
   };
+  FLAG_TYPE       flags;
   unsigned char   iv[IV_SIZE];
   int             writer_cb_ref;
   int             writer_ud_ref;
@@ -1153,7 +1183,7 @@ typedef struct l_cfb_ctx_tag{
 } l_cfb_ctx;
 
 static l_cfb_ctx *l_get_cfb_at (lua_State *L, int i) {
-  l_cfb_ctx *ctx = (l_cfb_ctx *)lutil_checkudatap (L, i, L_CFB_CTX);
+  l_cfb_ctx *ctx = (l_cfb_ctx *)laes_aligned_checkudatap (L, i, L_CFB_CTX);
   luaL_argcheck (L, ctx != NULL, 1, L_CFB_NAME " expected");
   luaL_argcheck (L, !(ctx->flags & FLAG_DESTROYED), 1, L_CFB_NAME " is destroyed");
   return ctx;
@@ -1166,7 +1196,7 @@ static int l_cfb_new(lua_State *L, int decrypt){
 
   luaL_argcheck (L, buf_len >= (AES_BLOCK_SIZE * 2), 1, "buffer size is too small");
 
-  ctx = (l_cfb_ctx *)lutil_newudatap_impl(L, ctx_len, L_CFB_CTX);
+  ctx = (l_cfb_ctx *)laes_aligned_newudatap(L, ctx_len, L_CFB_CTX);
   memset(ctx, 0, ctx_len);
 
   ctx->buffer_size = buf_len;
@@ -1185,7 +1215,7 @@ static int l_cfb_clone(lua_State *L){
 
   luaL_argcheck (L, buf_len >= (AES_BLOCK_SIZE * 2), 1, "buffer size is too small");
 
-  ctx2 = (l_cfb_ctx *)lutil_newudatap_impl(L, ctx_len, L_CFB_CTX);
+  ctx2 = (l_cfb_ctx *)laes_aligned_newudatap(L, ctx_len, L_CFB_CTX);
   memset(ctx2, 0, ctx_len);
 
   ctx2->buffer_size    = buf_len;
@@ -1207,7 +1237,7 @@ static int l_cfb_new_decrypt(lua_State *L){
 }
 
 static int l_cfb_tostring(lua_State *L){
-  l_cfb_ctx *ctx = (l_cfb_ctx *)lutil_checkudatap (L, 1, L_CFB_CTX);
+  l_cfb_ctx *ctx = (l_cfb_ctx *)laes_aligned_checkudatap (L, 1, L_CFB_CTX);
   lua_pushfstring(L, L_CFB_NAME " (%s): %p",
     CTX_FLAG(ctx, DESTROYED)?"destroy":(CTX_FLAG(ctx, OPEN)?"open":"close"),
     ctx
@@ -1216,7 +1246,7 @@ static int l_cfb_tostring(lua_State *L){
 }
 
 static int l_cfb_destroy(lua_State *L){
-  l_cfb_ctx *ctx = (l_cfb_ctx *)lutil_checkudatap (L, 1, L_CFB_CTX);
+  l_cfb_ctx *ctx = (l_cfb_ctx *)laes_aligned_checkudatap (L, 1, L_CFB_CTX);
   luaL_argcheck (L, ctx != NULL, 1, L_CFB_NAME " expected");
 
   if(ctx->flags & FLAG_DESTROYED) return 0;
@@ -1234,7 +1264,7 @@ static int l_cfb_destroy(lua_State *L){
 }
 
 static int l_cfb_destroyed(lua_State *L){
-  l_cfb_ctx *ctx = (l_cfb_ctx *)lutil_checkudatap (L, 1, L_CFB_CTX);
+  l_cfb_ctx *ctx = (l_cfb_ctx *)laes_aligned_checkudatap (L, 1, L_CFB_CTX);
   luaL_argcheck (L, ctx != NULL, 1, L_CFB_NAME " expected");
   lua_pushboolean(L, ctx->flags & FLAG_DESTROYED);
   return 1;
@@ -1515,12 +1545,12 @@ static const struct luaL_Reg l_cfb_meth[] = {
 static const char * L_OFB_CTX = L_OFB_NAME;
 
 typedef struct l_ofb_ctx_tag{
-  FLAG_TYPE       flags;
   union{
     aes_encrypt_ctx  ctx[1];
     aes_encrypt_ctx ectx[1];
     aes_decrypt_ctx dctx[1];
   };
+  FLAG_TYPE       flags;
   unsigned char   iv[IV_SIZE];
   int             writer_cb_ref;
   int             writer_ud_ref;
@@ -1529,7 +1559,7 @@ typedef struct l_ofb_ctx_tag{
 } l_ofb_ctx;
 
 static l_ofb_ctx *l_get_ofb_at (lua_State *L, int i) {
-  l_ofb_ctx *ctx = (l_ofb_ctx *)lutil_checkudatap (L, i, L_OFB_CTX);
+  l_ofb_ctx *ctx = (l_ofb_ctx *)laes_aligned_checkudatap (L, i, L_OFB_CTX);
   luaL_argcheck (L, ctx != NULL, 1, L_OFB_NAME " expected");
   luaL_argcheck (L, !(ctx->flags & FLAG_DESTROYED), 1, L_OFB_NAME " is destroyed");
   return ctx;
@@ -1542,7 +1572,7 @@ static int l_ofb_new(lua_State *L, int decrypt){
 
   luaL_argcheck (L, buf_len >= (AES_BLOCK_SIZE * 2), 1, "buffer size is too small");
 
-  ctx = (l_ofb_ctx *)lutil_newudatap_impl(L, ctx_len, L_OFB_CTX);
+  ctx = (l_ofb_ctx *)laes_aligned_newudatap(L, ctx_len, L_OFB_CTX);
   memset(ctx, 0, ctx_len);
 
   ctx->buffer_size = buf_len;
@@ -1561,7 +1591,7 @@ static int l_ofb_clone(lua_State *L){
 
   luaL_argcheck (L, buf_len >= (AES_BLOCK_SIZE * 2), 1, "buffer size is too small");
 
-  ctx2 = (l_ofb_ctx *)lutil_newudatap_impl(L, ctx_len, L_OFB_CTX);
+  ctx2 = (l_ofb_ctx *)laes_aligned_newudatap(L, ctx_len, L_OFB_CTX);
   memset(ctx2, 0, ctx_len);
 
   ctx2->buffer_size    = buf_len;
@@ -1583,7 +1613,7 @@ static int l_ofb_new_decrypt(lua_State *L){
 }
 
 static int l_ofb_tostring(lua_State *L){
-  l_ofb_ctx *ctx = (l_ofb_ctx *)lutil_checkudatap (L, 1, L_OFB_CTX);
+  l_ofb_ctx *ctx = (l_ofb_ctx *)laes_aligned_checkudatap (L, 1, L_OFB_CTX);
   lua_pushfstring(L, L_OFB_NAME " (%s): %p",
     CTX_FLAG(ctx, DESTROYED)?"destroy":(CTX_FLAG(ctx, OPEN)?"open":"close"),
     ctx
@@ -1592,7 +1622,7 @@ static int l_ofb_tostring(lua_State *L){
 }
 
 static int l_ofb_destroy(lua_State *L){
-  l_ofb_ctx *ctx = (l_ofb_ctx *)lutil_checkudatap (L, 1, L_OFB_CTX);
+  l_ofb_ctx *ctx = (l_ofb_ctx *)laes_aligned_checkudatap (L, 1, L_OFB_CTX);
   luaL_argcheck (L, ctx != NULL, 1, L_OFB_NAME " expected");
 
   if(ctx->flags & FLAG_DESTROYED) return 0;
@@ -1610,7 +1640,7 @@ static int l_ofb_destroy(lua_State *L){
 }
 
 static int l_ofb_destroyed(lua_State *L){
-  l_ofb_ctx *ctx = (l_ofb_ctx *)lutil_checkudatap (L, 1, L_OFB_CTX);
+  l_ofb_ctx *ctx = (l_ofb_ctx *)laes_aligned_checkudatap (L, 1, L_OFB_CTX);
   luaL_argcheck (L, ctx != NULL, 1, L_OFB_NAME " expected");
   lua_pushboolean(L, ctx->flags & FLAG_DESTROYED);
   return 1;
@@ -1917,12 +1947,12 @@ static void backward_iv_dec(unsigned char *iv){
 static const char * L_CTR_CTX = L_CTR_NAME;
 
 typedef struct l_ctr_ctx_tag{
-  FLAG_TYPE       flags;
   union{
     aes_encrypt_ctx  ctx[1];
     aes_encrypt_ctx ectx[1];
     aes_decrypt_ctx dctx[1];
   };
+  FLAG_TYPE       flags;
   unsigned char   iv[IV_SIZE];
   cbuf_inc        *inc_fn;
   int             writer_cb_ref;
@@ -1932,7 +1962,7 @@ typedef struct l_ctr_ctx_tag{
 } l_ctr_ctx;
 
 static l_ctr_ctx *l_get_ctr_at (lua_State *L, int i) {
-  l_ctr_ctx *ctx = (l_ctr_ctx *)lutil_checkudatap (L, i, L_CTR_CTX);
+  l_ctr_ctx *ctx = (l_ctr_ctx *)laes_aligned_checkudatap (L, i, L_CTR_CTX);
   luaL_argcheck (L, ctx != NULL, 1, L_CTR_NAME " expected");
   luaL_argcheck (L, !(ctx->flags & FLAG_DESTROYED), 1, L_CTR_NAME " is destroyed");
   return ctx;
@@ -1945,7 +1975,7 @@ static int l_ctr_new(lua_State *L, int decrypt){
 
   luaL_argcheck (L, buf_len >= (AES_BLOCK_SIZE * 2), 1, "buffer size is too small");
 
-  ctx = (l_ctr_ctx *)lutil_newudatap_impl(L, ctx_len, L_CTR_CTX);
+  ctx = (l_ctr_ctx *)laes_aligned_newudatap(L, ctx_len, L_CTR_CTX);
   memset(ctx, 0, ctx_len);
 
   ctx->inc_fn         = backward_iv_inc;
@@ -1965,7 +1995,7 @@ static int l_ctr_clone(lua_State *L){
 
   luaL_argcheck (L, buf_len >= (AES_BLOCK_SIZE * 2), 1, "buffer size is too small");
 
-  ctx2 = (l_ctr_ctx *)lutil_newudatap_impl(L, ctx_len, L_CTR_CTX);
+  ctx2 = (l_ctr_ctx *)laes_aligned_newudatap(L, ctx_len, L_CTR_CTX);
   memset(ctx2, 0, ctx_len);
 
   ctx2->buffer_size    = buf_len;
@@ -1988,7 +2018,7 @@ static int l_ctr_new_decrypt(lua_State *L){
 }
 
 static int l_ctr_tostring(lua_State *L){
-  l_ctr_ctx *ctx = (l_ctr_ctx *)lutil_checkudatap (L, 1, L_CTR_CTX);
+  l_ctr_ctx *ctx = (l_ctr_ctx *)laes_aligned_checkudatap (L, 1, L_CTR_CTX);
   lua_pushfstring(L, L_CTR_NAME " (%s): %p",
     CTX_FLAG(ctx, DESTROYED)?"destroy":(CTX_FLAG(ctx, OPEN)?"open":"close"),
     ctx
@@ -1997,7 +2027,7 @@ static int l_ctr_tostring(lua_State *L){
 }
 
 static int l_ctr_destroy(lua_State *L){
-  l_ctr_ctx *ctx = (l_ctr_ctx *)lutil_checkudatap (L, 1, L_CTR_CTX);
+  l_ctr_ctx *ctx = (l_ctr_ctx *)laes_aligned_checkudatap (L, 1, L_CTR_CTX);
   luaL_argcheck (L, ctx != NULL, 1, L_CTR_NAME " expected");
 
   if(ctx->flags & FLAG_DESTROYED) return 0;
@@ -2015,7 +2045,7 @@ static int l_ctr_destroy(lua_State *L){
 }
 
 static int l_ctr_destroyed(lua_State *L){
-  l_ctr_ctx *ctx = (l_ctr_ctx *)lutil_checkudatap (L, 1, L_CTR_CTX);
+  l_ctr_ctx *ctx = (l_ctr_ctx *)laes_aligned_checkudatap (L, 1, L_CTR_CTX);
   luaL_argcheck (L, ctx != NULL, 1, L_CTR_NAME " expected");
   lua_pushboolean(L, ctx->flags & FLAG_DESTROYED);
   return 1;
@@ -2325,6 +2355,39 @@ static const struct luaL_Reg l_bgcrypto_lib[] = {
   {"ctr_decrypter", l_ctr_new_decrypt},
   {NULL, NULL}
 };
+
+static void static_test(){
+
+  L_AES_STATIC_ASSERT(L_AES_ALIGN_INT(0xEF, 16) == 0xF0);
+  L_AES_STATIC_ASSERT(L_AES_ALIGN_INT(0xE1, 16) == 0xF0);
+  L_AES_STATIC_ASSERT(L_AES_ALIGN_INT(0xE0, 16) == 0xE0);
+
+  L_AES_STATIC_ASSERT(sizeof(aes_encrypt_ctx) == sizeof(aes_decrypt_ctx));
+
+  L_AES_STATIC_ASSERT(offsetof(l_aes_ctx, ctx)  == 0);
+  L_AES_STATIC_ASSERT(offsetof(l_aes_ctx, ectx) == 0);
+  L_AES_STATIC_ASSERT(offsetof(l_aes_ctx, dctx) == 0);
+
+  L_AES_STATIC_ASSERT(offsetof(l_ecb_ctx, ctx)  == 0);
+  L_AES_STATIC_ASSERT(offsetof(l_ecb_ctx, ectx) == 0);
+  L_AES_STATIC_ASSERT(offsetof(l_ecb_ctx, dctx) == 0);
+
+  L_AES_STATIC_ASSERT(offsetof(l_cbc_ctx, ctx)  == 0);
+  L_AES_STATIC_ASSERT(offsetof(l_cbc_ctx, ectx) == 0);
+  L_AES_STATIC_ASSERT(offsetof(l_cbc_ctx, dctx) == 0);
+
+  L_AES_STATIC_ASSERT(offsetof(l_cfb_ctx, ctx)  == 0);
+  L_AES_STATIC_ASSERT(offsetof(l_cfb_ctx, ectx) == 0);
+  L_AES_STATIC_ASSERT(offsetof(l_cfb_ctx, dctx) == 0);
+
+  L_AES_STATIC_ASSERT(offsetof(l_ofb_ctx, ctx)  == 0);
+  L_AES_STATIC_ASSERT(offsetof(l_ofb_ctx, ectx) == 0);
+  L_AES_STATIC_ASSERT(offsetof(l_ofb_ctx, dctx) == 0);
+
+  L_AES_STATIC_ASSERT(offsetof(l_ctr_ctx, ctx)  == 0);
+  L_AES_STATIC_ASSERT(offsetof(l_ctr_ctx, ectx) == 0);
+  L_AES_STATIC_ASSERT(offsetof(l_ctr_ctx, dctx) == 0);
+}
 
 LUTL_EXPORT int luaopen_bgcrypto_aes(lua_State*L){
   int top = lua_gettop(L);
