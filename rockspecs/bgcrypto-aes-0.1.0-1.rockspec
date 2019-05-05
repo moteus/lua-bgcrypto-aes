@@ -1,9 +1,11 @@
+local v = "0.1.0"
+
 package = "bgcrypto-aes"
-version = "scm-0"
+version = v .. "-1"
 
 source = {
-  url = "https://github.com/moteus/lua-bgcrypto-aes/archive/master.zip",
-  dir = "lua-bgcrypto-aes-master",
+  url = "https://github.com/moteus/lua-bgcrypto-aes/archive/v" .. v .. ".zip",
+  dir = "lua-bgcrypto-aes-" .. v,
 }
 
 description = {
